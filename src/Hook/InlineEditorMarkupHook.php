@@ -6,6 +6,7 @@ namespace ContaoLiveEdit\Hook;
 
 use Contao\BackendUser;
 use Contao\System;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class InlineEditorMarkupHook
 {
@@ -68,7 +69,7 @@ final class InlineEditorMarkupHook
             return $buffer;
         }
 
-        $token = $container->get('security.csrf.token_manager')->getToken('contao_live_edit')->getValue();
+        $token = $container->get(CsrfTokenManagerInterface::class)->getToken('contao_live_edit')->getValue();
         $theme = ('light' === ($GLOBALS['TL_CONFIG']['contaoLiveEditTheme'] ?? 'dark')) ? 'light' : 'dark';
         $buffer = preg_replace_callback('/<html\b[^>]*>/i', static function (array $match) use ($theme): string {
             $tag = preg_replace('/\sdata-contao-live-edit-theme=("|\')[^"\']*\1/i', '', $match[0]) ?? $match[0];

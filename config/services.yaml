@@ -9,3 +9,7 @@ services:
 
     ContaoLiveEdit\Controller\EditorController:
         tags: ['controller.service_arguments']
+
+    Symfony\Component\Security\Csrf\CsrfTokenManagerInterface:
+        alias: security.csrf.token_manager
+        public: true
