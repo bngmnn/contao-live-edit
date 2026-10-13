@@ -178,9 +178,33 @@ final class InlineContentSaveController
         $connection = System::getContainer()->get('doctrine.dbal.default_connection');
         $columns = array_change_key_case($connection->createSchemaManager()->listTableColumns('tl_content'), CASE_LOWER);
         $fields = [];
-        $quickEditHiddenFields = ['id', 'pid', 'ptable', 'sorting', 'tstamp', 'type', 'protected', 'groups', 'customTpl', 'invisible'];
+        $quickEditHiddenFields = ['id', 'pid', 'ptable', 'sorting', 'tstamp', 'type', 'protected', 'groups', 'customTpl', 'invisible', 'title'];
+        $subpaletteSelectors = [];
+        foreach ($GLOBALS['TL_DCA']['tl_content']['subpalettes'] ?? [] as $selector => $subpalette) {
+            if (!is_string($subpalette)) continue;
+            $subpalette = preg_replace('/\{[^}]*\}/', '', $subpalette) ?? $subpalette;
+            foreach (preg_split('/[,;]/', $subpalette) ?: [] as $subfield) {
+                $subfield = trim($subfield, " \t\n\r\0\x0B[]");
+                if ('' !== $subfield) $subpaletteSelectors[$subfield][] = (string) $selector;
+            }
+        }
+        $selectorConditions = static function (string $selector, array $seen = []) use (&$selectorConditions, $subpaletteSelectors): array {
+            if (isset($seen[$selector])) return [[]];
+            $seen[$selector] = true;
+            $selectorName = $selector;
+            $selectorValue = true;
+            if (str_contains($selector, '_')) [$selectorName, $selectorValue] = explode('_', $selector, 2);
+            $paths = [[]];
+            foreach ($subpaletteSelectors[$selectorName] ?? [] as $parent) {
+                $parentPaths = $selectorConditions($parent, $seen);
+                $paths = array_merge(...array_map(static fn ($path) => array_map(static fn ($parentPath) => [...$parentPath, ...$path], $parentPaths), $paths));
+            }
+            return array_map(static fn ($path) => [...$path, ['field' => $selectorName, 'value' => $selectorValue]], $paths);
+        };
         foreach ($this->editablePaletteFields((string) $element->type) as $name => $config) {
             if (!isset($columns[strtolower((string) $name)]) || in_array($name, $quickEditHiddenFields, true)) continue;
+            $dependencyGroups = [];
+            foreach ($subpaletteSelectors[$name] ?? [] as $selector) $dependencyGroups = [...$dependencyGroups, ...$selectorConditions($selector)];
             $selectedFiles = [];
             $eval = $config['eval'] ?? [];
             $widget = $config['inputType'] ?? '';
@@ -216,10 +240,9 @@ final class InlineContentSaveController
             } elseif ('pageTree' === $widget && !empty($eval['multiple'])) {
                 $value = StringUtil::deserialize($storedValue, true);
             }
-            if ('imageSize' === $widget && is_array($value)) {
-                $value = array_is_list($value)
-                    ? ['width' => (string) ($value[0] ?? ''), 'height' => (string) ($value[1] ?? ''), 'mode' => (string) ($value[2] ?? '')]
-                    : ['width' => (string) ($value['width'] ?? ''), 'height' => (string) ($value['height'] ?? ''), 'mode' => (string) ($value['mode'] ?? '')];
+            if ('imageSize' === $widget) {
+                $parts = is_array($value) ? array_values($value) : ['', '', (string) $value];
+                $value = ['width' => (string) ($parts[0] ?? ''), 'height' => (string) ($parts[1] ?? ''), 'mode' => (string) ($parts[2] ?? '')];
             }
             if ('checkbox' === $widget && !is_array($value)) $value = (bool) $value;
             elseif (is_array($value) && empty($eval['multiple']) && !in_array($widget, ['checkbox', 'fileTree', 'pageTree', 'inputUnit', 'listWizard', 'rowWizard', 'tableWizard', 'imageSize'], true) && 'cssID' !== $name) $value = (string) ($value['value'] ?? (array_is_list($value) ? ($value[0] ?? '') : ''));
@@ -227,15 +250,24 @@ final class InlineContentSaveController
 
             $options = [];
             $rawOptions = $eval['options'] ?? $config['options'] ?? $config['reference'] ?? [];
+            if ('imageSize' === $widget) $rawOptions = System::getContainer()->get('contao.image.sizes')->getAllOptions();
             if ('pageTree' === $widget) {
                 foreach ($connection->fetchAllAssociative('SELECT id,title FROM tl_page ORDER BY pid,sorting,title') as $page) $options[] = ['value' => (string) $page['id'], 'label' => (string) $page['title']];
             }
             if (is_array($rawOptions)) {
                 foreach ($rawOptions as $key => $optionLabel) {
+                    if ('imageSize' === $widget && is_array($optionLabel)) {
+                        foreach ($optionLabel as $imageSizeValue => $imageSizeLabel) {
+                            if (!is_scalar($imageSizeLabel)) continue;
+                            $optionValue = array_is_list($optionLabel) ? (string) $imageSizeLabel : (string) $imageSizeValue;
+                            $options[] = ['value' => $optionValue, 'label' => (string) $imageSizeLabel, 'group' => (string) $key];
+                        }
+                        continue;
+                    }
                     if (!is_scalar($optionLabel)) continue;
                     $optionValue = array_is_list($rawOptions) ? (string) $optionLabel : (string) $key;
                     $languageLabel = $GLOBALS['TL_LANG']['tl_content'][$name][$optionValue] ?? null;
-                    $options[] = ['value' => $optionValue, 'label' => is_string($languageLabel) ? $languageLabel : (string) $optionLabel];
+                    $options[] = ['value' => $optionValue, 'label' => is_string($languageLabel) ? $languageLabel : (string) $optionLabel, 'group' => 'imageSize' === $widget ? (string) $key : ''];
                 }
             }
 
@@ -251,6 +283,7 @@ final class InlineContentSaveController
                 'widget' => $widget, 'value' => $value, 'options' => $options, 'multiple' => !empty($eval['multiple']),
                 'required' => !empty($eval['mandatory']), 'maxlength' => (int) ($eval['maxlength'] ?? 0),
                 'richText' => !empty($eval['rte']),
+                'dependencyGroups' => $dependencyGroups,
                 'advanced' => in_array($name, ['cssID', 'customTpl', 'size', 'imageSize'], true),
                 'selectedFiles' => $selectedFiles ?? []];
         }
@@ -289,7 +322,14 @@ final class InlineContentSaveController
                 $cssClass = (string) ($value['class'] ?? $value[1] ?? '');
                 if (mb_strlen($cssId) > 255 || mb_strlen($cssClass) > 255) return new JsonResponse(['error' => 'The CSS ID or class is too long.'], 422);
                 $value = serialize([$cssId, $cssClass]);
-            } elseif (in_array($widget, ['listWizard', 'rowWizard', 'tableWizard', 'imageSize'], true) && is_array($value)) {
+            } elseif ('imageSize' === $widget && is_array($value)) {
+                $parts = [(string) ($value['width'] ?? $value[0] ?? ''), (string) ($value['height'] ?? $value[1] ?? ''), (string) ($value['mode'] ?? $value[2] ?? '')];
+                if (strlen(serialize($parts)) > 20000) return new JsonResponse(['error' => 'The structured field is too large.'], 422);
+                $allowedOptions = [];
+                foreach (System::getContainer()->get('contao.image.sizes')->getAllOptions() as $group => $groupOptions) foreach ($groupOptions as $key => $option) $allowedOptions[] = in_array($group, ['custom', 'relative', 'exact'], true) ? (string) $option : (string) $key;
+                if ('' !== $parts[2] && !in_array($parts[2], $allowedOptions, true)) return new JsonResponse(['error' => 'Choose a valid image size.'], 422);
+                $value = serialize($parts);
+            } elseif (in_array($widget, ['listWizard', 'rowWizard', 'tableWizard'], true) && is_array($value)) {
                 if (count($value) > 100 || strlen(serialize($value)) > 20000) return new JsonResponse(['error' => 'The structured field is too large.'], 422);
                 $value = serialize($value);
             } elseif ('inputUnit' === $widget && is_array($value) && is_scalar($value['value'] ?? null)) {

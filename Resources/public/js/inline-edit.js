@@ -500,7 +500,7 @@
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-modal', 'true');
     popover.setAttribute('aria-label', 'Edit content element');
-    popover.innerHTML = '<header class="contao-live-edit-element-header"><div><span class="contao-live-edit-modal-kicker">QUICK EDIT</span><h2>Element settings</h2><p>Edit the fields that matter here. Timing and visibility are just below.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header><div class="contao-live-edit-element-fields" data-element-fields><div class="contao-live-edit-library-message">Loading settings…</div></div><footer class="contao-live-edit-image-modal-footer"><div class="contao-live-edit-element-quick-actions"><button type="button" class="contao-live-edit-delete-element" data-action="delete"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12m-10 0 .7 10.2h6.6L14 6M8 6V4h4v2m-3 3v4m2-4v4"/></svg>Remove element</button><button type="button" class="contao-live-edit-visibility-toggle" data-action="visibility" aria-pressed="false"></button></div><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save changes</button></footer>';
+    popover.innerHTML = '<div class="contao-live-edit-element-modal-card"><header class="contao-live-edit-element-header"><div><span class="contao-live-edit-modal-kicker">QUICK EDIT</span><h2>Element settings</h2><p>Edit the fields that matter here. Timing and visibility are just below.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header><div class="contao-live-edit-element-fields" data-element-fields><div class="contao-live-edit-library-message">Loading settings…</div></div><footer class="contao-live-edit-image-modal-footer"><div class="contao-live-edit-element-quick-actions"><button type="button" class="contao-live-edit-visibility-toggle" data-action="visibility" aria-pressed="false" aria-label="Hide element" title="Hide element"></button><button type="button" class="contao-live-edit-delete-element" data-action="delete" aria-label="Remove element" title="Remove element"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12m-10 0 .7 10.2h6.6L14 6M8 6V4h4v2m-3 3v4m2-4v4"/></svg></button></div><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save changes</button></footer></div>';
     document.body.append(popover);
     popover.addEventListener('click', (event) => event.stopPropagation());
     popover.querySelectorAll('[data-action="cancel"]').forEach((button) => button.addEventListener('click', closePopover));
@@ -517,15 +517,18 @@
     const renderVisibilityButton = (hidden) => {
       visibilityButton.dataset.hidden = String(hidden);
       visibilityButton.setAttribute('aria-pressed', String(hidden));
+      visibilityButton.setAttribute('aria-label', hidden ? 'Show element' : 'Hide element');
+      visibilityButton.title = hidden ? 'Show element' : 'Hide element';
       visibilityButton.innerHTML = hidden
-        ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2.2"/><path d="m4 3 12 14"/></svg>Hidden · show on page'
-        : '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2.2"/></svg>Visible · hide on page';
+        ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2.2"/><path d="m3 3 14 14"/></svg>'
+        : '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2.2"/></svg>';
     };
     visibilityButton.addEventListener('click', () => renderVisibilityButton(visibilityButton.dataset.hidden !== 'true'));
 
     const controlFor = (field) => {
       const wrapper = document.createElement(field.name === 'cssID' ? 'div' : 'label');
       wrapper.className = 'contao-live-edit-element-field';
+      if (field.dependencyGroups?.length) wrapper.dataset.dependencyGroups = JSON.stringify(field.dependencyGroups);
       if (field.name === 'cssID') wrapper.classList.add('is-cssid-pair');
       if (field.advanced) wrapper.classList.add('is-advanced');
       const title = document.createElement('span');
@@ -548,7 +551,7 @@
           const partInput = document.createElement('input'); partInput.type = 'text'; partInput.value = String(field.value[key] ?? ''); partInput.dataset.cssIdField = field.name; partInput.dataset.cssIdKey = key;
           part.append(partLabel, partInput); input.append(part);
         });
-      } else if (field.widget === 'imageSize' && field.value && typeof field.value === 'object') {
+      } else if (field.widget === 'imageSize') {
         input = document.createElement('span'); input.className = 'contao-live-edit-element-image-size';
         [['Width', 'width'], ['Height', 'height']].forEach(([label, key]) => {
           const part = document.createElement('span'); part.className = 'contao-live-edit-element-image-size-part';
@@ -557,9 +560,14 @@
           part.append(partLabel, partInput); input.append(part);
         });
         const mode = document.createElement('span'); mode.className = 'contao-live-edit-element-image-size-part';
-        const modeLabel = document.createElement('span'); modeLabel.textContent = 'Fit';
+        const modeLabel = document.createElement('span'); modeLabel.textContent = 'Preset / fit';
         const modeSelect = document.createElement('select'); modeSelect.dataset.imageSizeField = field.name; modeSelect.dataset.imageSizeKey = 'mode';
-        [['', 'Default'], ['crop', 'Crop'], ['box', 'Fit within'], ['proportional', 'Keep proportions']].forEach(([value, label]) => { const option = document.createElement('option'); option.value = value; option.textContent = label; modeSelect.append(option); });
+        const defaultOption = document.createElement('option'); defaultOption.value = ''; defaultOption.textContent = 'Custom dimensions'; modeSelect.append(defaultOption);
+        let currentGroup = null; let optionGroup = null;
+        for (const optionData of field.options || []) {
+          if (optionData.group && optionData.group !== currentGroup) { currentGroup = optionData.group; optionGroup = document.createElement('optgroup'); optionGroup.label = currentGroup; modeSelect.append(optionGroup); }
+          const option = document.createElement('option'); option.value = optionData.value; option.textContent = optionData.label; (optionData.group ? optionGroup : modeSelect).append(option);
+        }
         modeSelect.value = String(field.value.mode ?? ''); mode.append(modeLabel, modeSelect); input.append(mode);
       } else if (['select', 'radio', 'pageTree'].includes(field.widget) && field.options?.length) {
         input = document.createElement('select');
@@ -606,7 +614,7 @@
       }
       if (input.matches?.('input,textarea,select')) input.name = field.name;
       input.dataset.widget = field.widget; input.dataset.options = JSON.stringify(field.options || []);
-      if (field.required && input.matches?.('input,textarea,select') && input.type !== 'hidden') input.required = true;
+      if (field.required && input.matches?.('input,textarea,select') && input.type !== 'hidden') { input.dataset.conditionalRequired = 'true'; input.required = !field.dependencyGroups?.length; }
       wrapper.append(input);
       if (field.description) { const hint = document.createElement('small'); hint.textContent = field.description; wrapper.append(hint); }
       if (field.widget === 'fileTree') {
@@ -705,6 +713,22 @@
         for (const field of extraFields) details.append(controlFor(field));
         fieldPanel.append(details);
       }
+      const refreshDependentFields = () => {
+        for (const dependent of fieldPanel.querySelectorAll('[data-dependency-groups]')) {
+          let groups = []; try { groups = JSON.parse(dependent.dataset.dependencyGroups); } catch {}
+          const active = groups.some((group) => group.every((condition) => {
+            const selector = fieldPanel.querySelector(`[name="${CSS.escape(condition.field)}"]`);
+            if (!selector) return false;
+            const actual = selector.type === 'checkbox' ? selector.checked : selector.value;
+            return typeof condition.value === 'boolean' ? Boolean(actual) === condition.value : String(actual) === String(condition.value);
+          }));
+          dependent.hidden = !active;
+          dependent.querySelectorAll('[data-conditional-required="true"]').forEach((control) => { control.required = active; });
+        }
+      };
+      fieldPanel.addEventListener('change', refreshDependentFields);
+      fieldPanel.addEventListener('input', refreshDependentFields);
+      refreshDependentFields();
       const richTextareas = [...fieldPanel.querySelectorAll('textarea.contao-live-edit-native-rte')];
       if (richTextareas.length && window.hugerte?.init) {
         for (const textarea of richTextareas) {
