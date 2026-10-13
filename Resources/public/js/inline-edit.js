@@ -500,7 +500,7 @@
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-modal', 'true');
     popover.setAttribute('aria-label', 'Edit content element');
-    popover.innerHTML = '<div class="contao-live-edit-element-modal-card"><header class="contao-live-edit-element-header"><div><span class="contao-live-edit-modal-kicker">QUICK EDIT</span><h2>Element settings</h2><p>Edit the fields that matter here. Timing and visibility are just below.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header><div class="contao-live-edit-element-fields" data-element-fields><div class="contao-live-edit-library-message">Loading settings…</div></div><footer class="contao-live-edit-image-modal-footer"><div class="contao-live-edit-element-quick-actions"><button type="button" class="contao-live-edit-visibility-toggle" data-action="visibility" aria-pressed="false" aria-label="Hide element" title="Hide element"></button><button type="button" class="contao-live-edit-delete-element" data-action="delete" aria-label="Remove element" title="Remove element"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12m-10 0 .7 10.2h6.6L14 6M8 6V4h4v2m-3 3v4m2-4v4"/></svg></button></div><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save changes</button></footer></div>';
+    popover.innerHTML = '<div class="contao-live-edit-element-modal-card"><header class="contao-live-edit-element-header"><div><span class="contao-live-edit-modal-kicker">QUICK EDIT</span><h2>Element settings</h2><p>Edit the fields that matter here. Timing and visibility are just below.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header><div class="contao-live-edit-element-fields" data-element-fields><div class="contao-live-edit-library-message">Loading settings…</div></div><footer class="contao-live-edit-image-modal-footer"><div class="contao-live-edit-element-quick-actions"><button type="button" class="contao-live-edit-delete-element" data-action="delete" aria-label="Remove element" title="Remove element"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12m-10 0 .7 10.2h6.6L14 6M8 6V4h4v2m-3 3v4m2-4v4"/></svg></button><button type="button" class="contao-live-edit-visibility-toggle" data-action="visibility" aria-pressed="false" aria-label="Hide element" title="Hide element"></button></div><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save changes</button></footer></div>';
     document.body.append(popover);
     popover.addEventListener('click', (event) => event.stopPropagation());
     popover.querySelectorAll('[data-action="cancel"]').forEach((button) => button.addEventListener('click', closePopover));
@@ -673,6 +673,15 @@
       }
       return wrapper;
     };
+    const appendFields = (container, fields) => {
+      for (let index = 0; index < fields.length; index++) {
+        const field = fields[index];
+        if (field.name === 'start' && fields[index + 1]?.name === 'stop') {
+          const dates = document.createElement('div'); dates.className = 'contao-live-edit-element-date-range';
+          dates.append(controlFor(field), controlFor(fields[++index])); container.append(dates);
+        } else container.append(controlFor(field));
+      }
+    };
 
     try {
       const response = await fetch(`/contao-live-edit/element-fields/${encodeURIComponent(id)}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
@@ -706,11 +715,11 @@
           if (field.name === type) control.querySelector('input,textarea,select')?.addEventListener('input', (event) => updateVideoPreview(event.target.value));
         }
         updateVideoPreview(String(mainFields.find((field) => field.name === type)?.value || ''));
-      } else for (const field of mainFields) fieldPanel.append(controlFor(field));
+      } else appendFields(fieldPanel, mainFields);
       if (extraFields.length) {
         const details = document.createElement('details'); details.className = 'contao-live-edit-element-extra';
         const summary = document.createElement('summary'); summary.textContent = `Advanced settings · ${extraFields.length} fields`; details.append(summary);
-        for (const field of extraFields) details.append(controlFor(field));
+        appendFields(details, extraFields);
         fieldPanel.append(details);
       }
       const refreshDependentFields = () => {
