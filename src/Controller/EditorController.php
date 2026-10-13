@@ -22,6 +22,8 @@ final class EditorController extends AbstractController
             throw $this->createAccessDeniedException('Sign in to Contao as an administrator to use the visual editor.');
         }
 
-        return $this->render('@ContaoLiveEdit/editor.html.twig');
+        return $this->render('@ContaoLiveEdit/editor.html.twig', [
+            'theme' => 'dark' === ($GLOBALS['TL_CONFIG']['contaoLiveEditTheme'] ?? 'light') ? 'dark' : 'light',
+        ]);
     }
 }

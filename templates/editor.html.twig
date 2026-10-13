@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-contao-live-edit-theme="{{ theme|default('light') }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f6f5ef">
+  <meta name="theme-color" content="{{ theme|default('light') == 'dark' ? '#101214' : '#f6f5ef' }}">
   <title>Contao Live Edit</title>
-  <link rel="stylesheet" href="/bundles/contaoliveedit/editor/editor.css?v=3">
+  <link rel="stylesheet" href="/bundles/contaoliveedit/editor/editor.css?v=4">
 </head>
 <body>
   <header class="editor-bar">
@@ -31,6 +31,6 @@
       <div id="previewNotice" class="preview-notice" role="status" aria-live="polite" hidden></div>
     </main>
   </div>
-  <script src="/bundles/contaoliveedit/editor/editor.js?v=3" defer></script>
+  <script src="/bundles/contaoliveedit/editor/editor.js?v=4" defer></script>
 </body>
 </html>

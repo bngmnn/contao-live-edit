@@ -530,6 +530,7 @@
       wrapper.className = 'contao-live-edit-element-field';
       if (field.dependencyGroups?.length) wrapper.dataset.dependencyGroups = JSON.stringify(field.dependencyGroups);
       if (field.name === 'cssID') wrapper.classList.add('is-cssid-pair');
+      if (field.widget === 'checkbox' && !field.options?.length) wrapper.classList.add('is-toggle-field');
       if (field.advanced) wrapper.classList.add('is-advanced');
       const title = document.createElement('span');
       title.className = 'contao-live-edit-element-field-title';
@@ -674,11 +675,27 @@
       return wrapper;
     };
     const appendFields = (container, fields) => {
-      for (let index = 0; index < fields.length; index++) {
-        const field = fields[index];
-        if (field.name === 'start' && fields[index + 1]?.name === 'stop') {
+      const imageSelectorNames = new Set(fields.filter((field) => field.name === 'addImage' && field.widget === 'checkbox').map((field) => field.name));
+      const imageOptions = [];
+      const normalFields = [];
+      for (const field of fields) {
+        const dependsOnImageToggle = field.dependencyGroups?.some((group) => group.some((condition) => imageSelectorNames.has(condition.field)));
+        (dependsOnImageToggle ? imageOptions : normalFields).push(field);
+      }
+      const dates = [];
+      const remaining = [];
+      for (let index = 0; index < normalFields.length; index++) {
+        const field = normalFields[index];
+        if (field.name === 'start' && normalFields[index + 1]?.name === 'stop') {
+          dates.push(field, normalFields[++index]);
+        } else remaining.push(field);
+      }
+      const orderedFields = [...remaining, ...dates, ...imageOptions];
+      for (let index = 0; index < orderedFields.length; index++) {
+        const field = orderedFields[index];
+        if (field.name === 'start' && orderedFields[index + 1]?.name === 'stop') {
           const dates = document.createElement('div'); dates.className = 'contao-live-edit-element-date-range';
-          dates.append(controlFor(field), controlFor(fields[++index])); container.append(dates);
+          dates.append(controlFor(field), controlFor(orderedFields[++index])); container.append(dates);
         } else container.append(controlFor(field));
       }
     };
@@ -746,15 +763,25 @@
             await window.hugerte.init({
               target: textarea,
               height: 300,
-              menubar: false,
+              language: document.documentElement.lang || 'en',
+              element_format: 'html',
+              entities: '160,nbsp,60,lt,62,gt,173,shy',
+              skin: document.documentElement.dataset.contaoLiveEditTheme === 'dark' ? 'oxide-dark' : 'oxide',
               branding: false,
               promotion: false,
               statusbar: false,
               element_format: 'html',
-              plugins: 'link lists code',
-              toolbar: 'blocks | bold italic | bullist numlist | link unlink | undo redo | code',
-              block_formats: 'Paragraph=p; Heading 2=h2; Heading 3=h3; Heading 4=h4; Quote=blockquote',
-              content_style: 'body{font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;padding:8px 12px;color:#293d32}a{color:#526c4e}',
+              plugins: 'autosave charmap code fullscreen help image importcss link lists searchreplace stripnbsp table visualblocks visualchars',
+              menubar: 'file edit insert view format table help',
+              toolbar: 'link unlink | image | blocks | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | code',
+              extended_valid_elements: 'q[cite|class|title],article,section,hgroup,figure,figcaption',
+              contextmenu: false,
+              paste_data_images: false,
+              browser_spellcheck: true,
+              importcss_append: true,
+              content_style: document.documentElement.dataset.contaoLiveEditTheme === 'dark'
+                ? 'body{background:#202427;color:#e8e9e7;font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;padding:8px 12px}a{color:#ff7900}'
+                : 'body{background:#fff;color:#293d32;font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;padding:8px 12px}a{color:#c75b22}',
               setup: (editor) => editor.on('change input undo redo', () => { textarea.value = editor.getContent(); textarea.dispatchEvent(new Event('input', { bubbles: true })); }),
             });
           } catch (error) { console.warn('Contao rich-text editor could not be initialized.', error); }
