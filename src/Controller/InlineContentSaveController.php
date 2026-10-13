@@ -201,14 +201,21 @@ final class InlineContentSaveController
             }
             return array_map(static fn ($path) => [...$path, ['field' => $selectorName, 'value' => $selectorValue]], $paths);
         };
-        foreach ($this->editablePaletteFields((string) $element->type) as $name => $config) {
+        $editablePalette = $this->editablePaletteFields((string) $element->type);
+        foreach ($editablePalette as $name => $config) {
             if (!isset($columns[strtolower((string) $name)]) || in_array($name, $quickEditHiddenFields, true)) continue;
             $dependencyGroups = [];
-            foreach ($subpaletteSelectors[$name] ?? [] as $selector) $dependencyGroups = [...$dependencyGroups, ...$selectorConditions($selector)];
+            foreach ($subpaletteSelectors[$name] ?? [] as $selector) {
+                // A field such as `code` may be shared by different element types.
+                // Only apply a selector when that selector field belongs to this palette.
+                $selectorField = explode('_', $selector, 2)[0];
+                if (!isset($editablePalette[$selectorField])) continue;
+                $dependencyGroups = [...$dependencyGroups, ...$selectorConditions($selector)];
+            }
             $selectedFiles = [];
             $eval = $config['eval'] ?? [];
             $widget = $config['inputType'] ?? '';
-            if (!in_array($widget, ['text', 'textarea', 'select', 'checkbox', 'radio', 'fileTree', 'pageTree', 'inputUnit', 'imageSize'], true) || !empty($eval['readonly']) || !empty($eval['doNotShow'])) continue;
+            if (!in_array($widget, ['text', 'textarea', 'select', 'checkbox', 'radio', 'fileTree', 'pageTree', 'inputUnit', 'imageSize', 'listWizard', 'rowWizard', 'tableWizard'], true) || !empty($eval['readonly']) || !empty($eval['doNotShow'])) continue;
 
             $label = $GLOBALS['TL_LANG']['tl_content'][$name][0] ?? ucwords(preg_replace('/([a-z])([A-Z])/', '$1 $2', $name));
             $description = $GLOBALS['TL_LANG']['tl_content'][$name][1] ?? '';
@@ -249,6 +256,15 @@ final class InlineContentSaveController
             elseif (null === $value) $value = '';
 
             $options = [];
+            $wizardColumns = [];
+            foreach (($config['fields'] ?? []) as $columnName => $columnConfig) {
+                if (!is_array($columnConfig)) continue;
+                $columnLabel = $columnConfig['label'] ?? $GLOBALS['TL_LANG']['tl_content'][$columnName][0] ?? $columnName;
+                $wizardColumns[] = [
+                    'name' => (string) $columnName,
+                    'label' => is_array($columnLabel) ? (string) ($columnLabel[0] ?? $columnName) : (string) $columnLabel,
+                ];
+            }
             $rawOptions = $eval['options'] ?? $config['options'] ?? $config['reference'] ?? [];
             if ('imageSize' === $widget) $rawOptions = System::getContainer()->get('contao.image.sizes')->getAllOptions();
             if ('pageTree' === $widget) {
@@ -282,13 +298,24 @@ final class InlineContentSaveController
                 'description' => is_array($description) ? (string) ($description[0] ?? '') : (string) $description,
                 'widget' => $widget, 'value' => $value, 'options' => $options, 'multiple' => !empty($eval['multiple']),
                 'required' => !empty($eval['mandatory']), 'maxlength' => (int) ($eval['maxlength'] ?? 0),
-                'richText' => !empty($eval['rte']),
+                // Contao's ACE source editor is plain code, not rich-text content.
+                'richText' => !empty($eval['rte']) && !str_contains(strtolower((string) $eval['rte']), 'ace'),
                 'dependencyGroups' => $dependencyGroups,
                 'advanced' => in_array($name, ['cssID', 'customTpl', 'size', 'imageSize'], true),
+                'columns' => $wizardColumns,
                 'selectedFiles' => $selectedFiles ?? []];
         }
 
-        return new JsonResponse(['id' => (int) $element->id, 'type' => (string) $element->type, 'invisible' => (bool) $element->invisible, 'fields' => $fields]);
+        $editorMode = match ((string) $element->type) {
+            'code' => 'code',
+            'markdown' => 'markdown',
+            'description_list' => 'description-list',
+            'unfiltered_html' => 'html',
+            'toplink' => 'toplink',
+            default => 'generic',
+        };
+
+        return new JsonResponse(['id' => (int) $element->id, 'type' => (string) $element->type, 'editorMode' => $editorMode, 'invisible' => (bool) $element->invisible, 'fields' => $fields]);
     }
 
     public function saveElementFields(Request $request): JsonResponse
@@ -432,9 +459,13 @@ final class InlineContentSaveController
             }
         };
         $readPalette($palette);
-        foreach ($dca['subpalettes'] ?? [] as $selector => $subpalette) {
-            if (isset($names[$selector])) $readPalette($subpalette);
-        }
+        do {
+            $previousCount = count($names);
+            foreach ($dca['subpalettes'] ?? [] as $selector => $subpalette) {
+                $selectorField = explode('_', (string) $selector, 2)[0];
+                if (isset($names[$selector]) || isset($names[$selectorField])) $readPalette($subpalette);
+            }
+        } while (count($names) > $previousCount);
         if (!$names) $names = array_fill_keys(array_keys($fields), true);
 
         $editable = [];

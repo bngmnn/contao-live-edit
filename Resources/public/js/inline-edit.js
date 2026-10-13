@@ -1,8 +1,8 @@
 (() => {
   const fields = '[data-inline-record][data-inline-field]';
-  const token = document.querySelector('meta[name="contao-live-edit-token"]')?.content;
+  const token = document.querySelector('meta[name="contao-live-edit-inline-token"]')?.content;
   if (!token) return;
-  const activationKey = 'contao-live-edit-active';
+  const activationKey = 'contao-live-edit-editor-active';
 
   let activeField = null;
   let originalMarkup = '';
@@ -526,7 +526,7 @@
     visibilityButton.addEventListener('click', () => renderVisibilityButton(visibilityButton.dataset.hidden !== 'true'));
 
     const controlFor = (field) => {
-      const wrapper = document.createElement(field.name === 'cssID' ? 'div' : 'label');
+      const wrapper = document.createElement(field.name === 'cssID' || ['listWizard', 'rowWizard', 'tableWizard'].includes(field.widget) ? 'div' : 'label');
       wrapper.className = 'contao-live-edit-element-field';
       if (field.dependencyGroups?.length) wrapper.dataset.dependencyGroups = JSON.stringify(field.dependencyGroups);
       if (field.name === 'cssID') wrapper.classList.add('is-cssid-pair');
@@ -534,7 +534,7 @@
       if (field.advanced) wrapper.classList.add('is-advanced');
       const title = document.createElement('span');
       title.className = 'contao-live-edit-element-field-title';
-      title.textContent = field.label || field.name;
+      title.textContent = popover.dataset.editorMode === 'description-list' && field.name === 'data' ? 'Terms and descriptions' : popover.dataset.editorMode === 'markdown' && field.name === 'code' ? 'Markdown' : field.name === 'highlight' && popover.dataset.editorMode === 'code' ? 'Syntax' : field.label || field.name;
       if (field.name !== 'cssID') wrapper.append(title);
       let input;
       if (field.widget === 'datetime') {
@@ -581,13 +581,49 @@
         }
         if (input.multiple) for (const option of input.options) option.selected = (Array.isArray(field.value) ? field.value : [field.value]).map(String).includes(option.value);
         else input.value = String(field.value ?? '');
-      } else if (field.widget === 'textarea' || ['listWizard', 'rowWizard', 'tableWizard'].includes(field.widget) || Array.isArray(field.value)) {
-        input = document.createElement('textarea'); input.rows = ['listWizard', 'rowWizard', 'tableWizard'].includes(field.widget) ? 5 : 4;
-        if (field.widget === 'listWizard') input.value = (Array.isArray(field.value) ? field.value : []).map(String).join('\n');
-        else if (['rowWizard', 'tableWizard'].includes(field.widget)) input.value = (Array.isArray(field.value) ? field.value : []).map((row) => (Array.isArray(row) ? row : Object.values(row || {})).map(String).join('\t')).join('\n');
+      } else if (field.widget === 'rowWizard' && field.columns?.length) {
+        input = document.createElement('div'); input.className = 'contao-live-edit-wizard-editor';
+        const rows = document.createElement('div'); rows.className = 'contao-live-edit-wizard-rows';
+        const columns = popover.dataset.editorMode === 'description-list' && field.name === 'data'
+          ? field.columns.map((column) => ({ ...column, label: column.name === 'key' ? 'Term' : column.name === 'value' ? 'Description' : column.label }))
+          : field.columns;
+        const sourceRows = Array.isArray(field.value) ? field.value : [];
+        const appendRow = (value = {}) => {
+          const row = document.createElement('div'); row.className = 'contao-live-edit-wizard-row';
+          for (const column of columns) {
+            const cell = document.createElement('label'); cell.className = 'contao-live-edit-wizard-cell';
+            const caption = document.createElement('span'); caption.textContent = column.label;
+            const cellInput = document.createElement('input'); cellInput.type = 'text';
+            cellInput.value = String(Array.isArray(value) ? value[columns.indexOf(column)] ?? '' : value?.[column.name] ?? '');
+            cellInput.dataset.wizardField = field.name; cellInput.dataset.wizardColumn = column.name;
+            cell.append(caption, cellInput); row.append(cell);
+          }
+          const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'contao-live-edit-wizard-remove'; remove.textContent = '×'; remove.title = 'Remove row';
+          remove.addEventListener('click', () => row.remove()); row.append(remove); rows.append(row);
+        };
+        sourceRows.forEach(appendRow);
+        const add = document.createElement('button'); add.type = 'button'; add.className = 'contao-live-edit-wizard-add'; add.textContent = '＋ Add row'; add.addEventListener('click', () => appendRow());
+        input.append(rows, add);
+      } else if (field.widget === 'listWizard') {
+        input = document.createElement('div'); input.className = 'contao-live-edit-wizard-editor is-list-wizard';
+        const rows = document.createElement('div'); rows.className = 'contao-live-edit-wizard-rows';
+        const appendRow = (value = '') => {
+          const row = document.createElement('div'); row.className = 'contao-live-edit-wizard-row';
+          const cell = document.createElement('input'); cell.type = 'text'; cell.value = String(value); cell.dataset.wizardField = field.name; cell.dataset.wizardColumn = 'value';
+          const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'contao-live-edit-wizard-remove'; remove.textContent = '×'; remove.title = 'Remove item';
+          remove.addEventListener('click', () => row.remove()); row.append(cell, remove); rows.append(row);
+        };
+        (Array.isArray(field.value) ? field.value : []).forEach(appendRow);
+        const add = document.createElement('button'); add.type = 'button'; add.className = 'contao-live-edit-wizard-add'; add.textContent = '＋ Add item'; add.addEventListener('click', () => appendRow());
+        input.append(rows, add);
+      } else if (field.widget === 'textarea' || ['rowWizard', 'tableWizard'].includes(field.widget) || Array.isArray(field.value)) {
+        input = document.createElement('textarea'); input.rows = ['rowWizard', 'tableWizard'].includes(field.widget) ? 5 : 4;
+        if (['rowWizard', 'tableWizard'].includes(field.widget)) input.value = (Array.isArray(field.value) ? field.value : []).map((row) => (Array.isArray(row) ? row : Object.values(row || {})).map(String).join('\t')).join('\n');
         else if (Array.isArray(field.value)) input.value = JSON.stringify(field.value ?? [], null, 2);
         else input.value = String(field.value ?? '');
         if (field.richText) { input.classList.add('contao-live-edit-native-rte'); input.rows = 9; }
+        if (['code', 'html', 'unfilteredHtml'].includes(field.name)) { input.classList.add('contao-live-edit-source-editor'); input.rows = field.name === 'code' ? 18 : 14; input.spellcheck = false; wrapper.classList.add('is-source-field'); }
+        if (field.name === 'markdownSource' || field.name === 'highlight') wrapper.classList.add('is-quick-select');
       } else if (field.widget === 'inputUnit') {
         input = document.createElement('span'); input.className = 'contao-live-edit-element-input-unit';
         const amount = document.createElement('input'); amount.type = 'text'; amount.value = String(field.value?.value ?? ''); amount.dataset.unitValue = field.name;
@@ -617,7 +653,7 @@
       input.dataset.widget = field.widget; input.dataset.options = JSON.stringify(field.options || []);
       if (field.required && input.matches?.('input,textarea,select') && input.type !== 'hidden') { input.dataset.conditionalRequired = 'true'; input.required = !field.dependencyGroups?.length; }
       wrapper.append(input);
-      if (field.description) { const hint = document.createElement('small'); hint.textContent = field.description; wrapper.append(hint); }
+      if (field.description && !(popover.dataset.editorMode === 'markdown' && field.name === 'code')) { const hint = document.createElement('small'); hint.textContent = field.description; wrapper.append(hint); }
       if (field.widget === 'fileTree') {
         const selectedView = document.createElement('div'); selectedView.className = 'contao-live-edit-element-selected-files';
         const renderSelected = () => {
@@ -686,9 +722,8 @@
       const orderedFields = [];
       for (let index = 0; index < normalFields.length; index++) {
         const field = normalFields[index];
-        if (field.name === 'start' && normalFields[index + 1]?.name === 'stop') {
-          dates.push(field, normalFields[++index]);
-        } else {
+        if (field.name === 'start' && normalFields[index + 1]?.name === 'stop') dates.push(field, normalFields[++index]);
+        else {
           orderedFields.push(field);
           if (imageSelectorNames.has(field.name)) orderedFields.push(...imageOptions.splice(0));
         }
@@ -707,11 +742,17 @@
       const response = await fetch(`/contao-live-edit/element-fields/${encodeURIComponent(id)}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not load element settings.');
+      const editorMode = result.editorMode || 'generic';
+      popover.dataset.editorMode = editorMode;
+      popover.classList.toggle('is-wide', ['code', 'markdown', 'description-list', 'html'].includes(editorMode));
+      popover.classList.toggle('is-code-editor', editorMode === 'code');
       renderVisibilityButton(Boolean(result.invisible));
       const type = record.dataset.contaoLiveEditType;
       const videoType = ['youtube', 'vimeo'].includes(type);
-      popover.querySelector('h2').textContent = result.fields.length ? (videoType ? `Set ${type === 'youtube' ? 'YouTube' : 'Vimeo'} video` : `${type.replaceAll('_', ' ')} settings`) : 'No editable fields';
-      popover.querySelector('.contao-live-edit-element-header p').textContent = videoType ? 'Paste the video link, check the preview, then save.' : 'Essential fields first; less common options are grouped under Advanced settings.';
+      const titles = { code: 'Edit code', markdown: 'Edit Markdown', 'description-list': 'Edit description list', html: 'Edit HTML', toplink: 'Edit top link' };
+      const guidance = { code: 'Edit the source and choose its syntax from the quick selector.', markdown: 'Choose a source, then edit the Markdown content or select a source file.', 'description-list': 'Edit each term and description as a separate row.', html: 'Edit the HTML source directly.', toplink: 'Change the label used by the back-to-top link.' };
+      popover.querySelector('h2').textContent = result.fields.length ? (videoType ? `Set ${type === 'youtube' ? 'YouTube' : 'Vimeo'} video` : titles[editorMode] || `${type.replaceAll('_', ' ')} settings`) : 'No editable fields';
+      popover.querySelector('.contao-live-edit-element-header p').textContent = videoType ? 'Paste the video link, check the preview, then save.' : guidance[editorMode] || 'Edit the key fields here. Open Advanced settings for the rest of Contao’s options.';
       fieldPanel.replaceChildren();
       const mainFields = videoType ? result.fields.filter((field) => [type, 'titleText'].includes(field.name)) : result.fields.filter((field) => !field.advanced);
       const extraFields = videoType ? result.fields.filter((field) => !mainFields.includes(field)) : result.fields.filter((field) => field.advanced);
@@ -762,17 +803,18 @@
       if (richTextareas.length && window.hugerte?.init) {
         for (const textarea of richTextareas) {
           textarea.id = `contao-live-edit-rte-${id}-${textarea.name}`;
-          try {
-            await window.hugerte.init({
-              target: textarea,
-              height: 300,
+          const editorOptions = {
+            target: textarea,
+            height: 300,
+            menubar: false,
+            branding: false,
+            promotion: false,
+            statusbar: false,
+            element_format: 'html',
               language: document.documentElement.lang || 'en',
               element_format: 'html',
               entities: '160,nbsp,60,lt,62,gt,173,shy',
               skin: document.documentElement.dataset.contaoLiveEditTheme === 'dark' ? 'oxide-dark' : 'oxide',
-              branding: false,
-              promotion: false,
-              statusbar: false,
               plugins: 'autosave charmap code fullscreen help image importcss link lists searchreplace stripnbsp table visualblocks visualchars',
               menubar: 'file edit insert view format table help',
               toolbar: 'link unlink | image | blocks | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | code',
@@ -781,12 +823,14 @@
               paste_data_images: false,
               browser_spellcheck: true,
               importcss_append: true,
+              branding: false,
               content_style: document.documentElement.dataset.contaoLiveEditTheme === 'dark'
                 ? 'body{background:#202427;color:#e8e9e7;font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;padding:8px 12px}a{color:#ff7900}'
                 : 'body{background:#fff;color:#293d32;font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;padding:8px 12px}a{color:#c75b22}',
-              setup: (editor) => editor.on('change input undo redo', () => { textarea.value = editor.getContent(); textarea.dispatchEvent(new Event('input', { bubbles: true })); }),
-            });
-          } catch (error) { console.warn('Contao rich-text editor could not be initialized.', error); }
+            setup: (editor) => editor.on('change input undo redo', () => { textarea.value = editor.getContent(); textarea.dispatchEvent(new Event('input', { bubbles: true })); }),
+          };
+          try { await window.hugerte.init(editorOptions); }
+          catch (error) { console.warn('Contao rich-text editor could not be initialized.', error); }
         }
       }
       if (!result.fields.length) { const empty = document.createElement('p'); empty.className = 'contao-live-edit-library-message'; empty.textContent = 'This element has no editable fields in its Contao configuration.'; fieldPanel.append(empty); }
@@ -802,7 +846,7 @@
       const values = {};
       for (const input of fieldPanel.querySelectorAll('input,textarea,select')) {
         if (input.dataset.choiceField) continue;
-        if (input.dataset.arrayField || input.dataset.imageSizeField || input.dataset.cssIdField) continue;
+        if (input.dataset.arrayField || input.dataset.imageSizeField || input.dataset.cssIdField || input.dataset.wizardField) continue;
         if (input.dataset.unitValue) { values[input.dataset.unitValue] = { ...(values[input.dataset.unitValue] || {}), value: input.value }; continue; }
         if (input.dataset.unitName) { values[input.dataset.unitName] = { ...(values[input.dataset.unitName] || {}), unit: input.value }; continue; }
         if (input.dataset.widget === 'checkbox') values[input.name] = input.checked;
@@ -825,6 +869,16 @@
       for (const name of new Set([...fieldPanel.querySelectorAll('[data-array-field]')].map((input) => input.dataset.arrayField))) {
         values[name] = [...fieldPanel.querySelectorAll(`[data-array-field="${CSS.escape(name)}"]`)].sort((a, b) => Number(a.dataset.arrayIndex) - Number(b.dataset.arrayIndex)).map((input) => input.value);
       }
+      for (const name of new Set([...fieldPanel.querySelectorAll('[data-wizard-field]')].map((input) => input.dataset.wizardField))) {
+        const rowMap = new Map();
+        for (const input of fieldPanel.querySelectorAll(`[data-wizard-field="${CSS.escape(name)}"]`)) {
+          const row = input.closest('.contao-live-edit-wizard-row');
+          if (!rowMap.has(row)) rowMap.set(row, {});
+          rowMap.get(row)[input.dataset.wizardColumn] = input.value;
+        }
+        const listWizard = fieldPanel.querySelector(`[data-wizard-field="${CSS.escape(name)}"]`)?.closest('.is-list-wizard');
+        values[name] = [...rowMap.values()].map((row) => listWizard ? row.value : row);
+      }
       for (const name of new Set([...fieldPanel.querySelectorAll('[data-image-size-field]')].map((input) => input.dataset.imageSizeField))) {
         values[name] = Object.fromEntries([...fieldPanel.querySelectorAll(`[data-image-size-field="${CSS.escape(name)}"]`)].map((input) => [input.dataset.imageSizeKey, input.value]));
       }
@@ -843,7 +897,8 @@
         closePopover(); setMessage('Element saved'); window.setTimeout(() => window.location.reload(), 350);
       } catch (error) { submit.disabled = false; status.textContent = error.message || 'Could not save element settings.'; status.classList.add('is-error'); }
     });
-    popover.querySelector('[type="submit"]').focus();
+    const firstField = fieldPanel.querySelector('.contao-live-edit-source-editor') || fieldPanel.querySelector('.contao-live-edit-wizard-editor input, input:not([type="hidden"]),textarea,select');
+    (firstField || popover.querySelector('[type="submit"]')).focus();
   };
 
   document.addEventListener('click', (event) => {
@@ -902,7 +957,7 @@
       });
     if (!field || !isActive()) {
       const record = recordForTarget(event.target);
-      if (record && !record.matches('[data-contao-live-edit-type=\"image\"],[data-contao-live-edit-type=\"hyperlink\"]')) {
+      if (record && !record.matches('[data-contao-live-edit-type="image"],[data-contao-live-edit-type="hyperlink"]')) {
         if (pendingClick) window.clearTimeout(pendingClick.timer);
         pendingClick = null;
         event.preventDefault(); event.stopPropagation(); openElementEditor(record);
