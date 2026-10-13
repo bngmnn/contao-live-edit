@@ -3,6 +3,11 @@ contao_live_edit_editor:
     controller: ContaoLiveEdit\Controller\EditorController
     methods: [GET]
 
+contao_live_edit_editor_shortcut:
+    path: /editor
+    controller: ContaoLiveEdit\Controller\EditorController
+    methods: [GET]
+
 contao_live_edit_save:
     path: /contao-live-edit/save-inline
     controller: ContaoLiveEdit\Controller\InlineContentSaveController
