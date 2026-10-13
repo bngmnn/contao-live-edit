@@ -18,7 +18,7 @@
     noticeTimer = setTimeout(() => { notice.hidden = true; }, 3200);
   };
 
-  const inlineControl = () => frame.contentDocument.querySelector('.slowhouse-inline-bar [data-action="toggle"]');
+  const inlineControl = () => frame.contentDocument.querySelector('.contao-live-edit-inline-bar [data-action="toggle"]');
 
   const syncControls = () => {
     try {
@@ -53,7 +53,7 @@
       editorPoll = setInterval(() => {
         applyEditorMode();
         syncControls();
-        if (++attempts >= 40 || previewDocument.querySelector('.slowhouse-inline-bar [data-action="toggle"]')) {
+        if (++attempts >= 40 || previewDocument.querySelector('.contao-live-edit-inline-bar [data-action="toggle"]')) {
           clearInterval(editorPoll);
         }
       }, 150);
@@ -90,7 +90,7 @@
   pickerCategories.addEventListener('dragstart', (event) => {
     const item = event.target.closest('[data-element-type]');
     if (!item) return;
-    event.dataTransfer.setData('application/x-slowhouse-element', item.dataset.elementType);
+    event.dataTransfer.setData('application/x-contao-live-edit-element', item.dataset.elementType);
     event.dataTransfer.effectAllowed = 'copy';
   });
 

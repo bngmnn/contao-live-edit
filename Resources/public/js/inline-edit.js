@@ -14,13 +14,13 @@
   textMode = sessionStorage.getItem(activationKey) === 'true';
 
   const bar = document.createElement('div');
-  bar.className = 'slowhouse-inline-bar is-ready';
+  bar.className = 'contao-live-edit-inline-bar is-ready';
   bar.setAttribute('role', 'region');
   bar.setAttribute('aria-label', 'Inline text editor');
-  bar.innerHTML = '<span class="slowhouse-inline-hint">Double-click any text to edit</span><span class="slowhouse-inline-status" aria-live="polite"></span><button type="button" data-action="toggle">Edit text</button><button type="button" data-action="cancel">Cancel</button><button type="button" data-action="save">Save</button>';
+  bar.innerHTML = '<span class="contao-live-edit-inline-hint">Double-click any text to edit</span><span class="contao-live-edit-inline-status" aria-live="polite"></span><button type="button" data-action="toggle">Edit text</button><button type="button" data-action="cancel">Cancel</button><button type="button" data-action="save">Save</button>';
   document.body.append(bar);
 
-  const status = bar.querySelector('.slowhouse-inline-status');
+  const status = bar.querySelector('.contao-live-edit-inline-status');
   const toggleButton = bar.querySelector('[data-action="toggle"]');
   const saveButton = bar.querySelector('[data-action="save"]');
   const cancelButton = bar.querySelector('[data-action="cancel"]');
@@ -46,7 +46,7 @@
     const active = isActive();
     sessionStorage.setItem(activationKey, String(textMode));
     bar.classList.toggle('is-active', active);
-    document.body.classList.toggle('slowhouse-text-editing', active);
+    document.body.classList.toggle('contao-live-edit-text-editing', active);
     toggleButton.textContent = textMode ? 'Text editing on' : 'Edit text';
     toggleButton.setAttribute('aria-pressed', String(textMode));
     if (!active && activeField) finish(true);
@@ -89,7 +89,7 @@
 
   const elementAtPoint = (selector, x, y, within = document) => [...within.querySelectorAll(selector)]
     .filter((candidate) => {
-      if (candidate.closest('.slowhouse-inline-bar, .slowhouse-edit-popover')) return false;
+      if (candidate.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover')) return false;
       const rect = candidate.getBoundingClientRect();
       return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
     })
@@ -110,7 +110,7 @@
     const fieldName = editable.dataset.contaoLiveEditType === 'headline' ? 'headline'
       : editable.dataset.contaoLiveEditType === 'text' && heading && editable.contains(heading) ? 'headline'
         : editable.dataset.contaoLiveEditType === 'text' ? 'text' : '';
-    if (!fieldName || editable.closest('.slowhouse-inline-bar, .slowhouse-edit-popover')) return null;
+    if (!fieldName || editable.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover')) return null;
     const field = 'headline' === fieldName && heading ? heading : editable;
     field.dataset.inlineRecord = editable.dataset.contaoLiveEditRecord;
     field.dataset.inlineField = fieldName;
@@ -119,7 +119,7 @@
 
   const recordForTarget = (target) => target.closest('[data-contao-live-edit-record][data-contao-live-edit-type]');
   const hasDragType = (event, type) => Array.from(event.dataTransfer?.types || []).includes(type);
-  const isContentDrag = (event) => hasDragType(event, 'application/x-slowhouse-element');
+  const isContentDrag = (event) => hasDragType(event, 'application/x-contao-live-edit-element');
   const request = async (path, payload) => {
     const response = await fetch(path, {
       method: 'POST',
@@ -133,11 +133,11 @@
   };
 
   const addMoveHandle = (record) => {
-    if (!isActive() || record.querySelector(':scope > .slowhouse-move-handle')) return;
+    if (!isActive() || record.querySelector(':scope > .contao-live-edit-move-handle')) return;
     if ('static' === window.getComputedStyle(record).position) record.style.position = 'relative';
     const handle = document.createElement('button');
     handle.type = 'button';
-    handle.className = 'slowhouse-move-handle';
+    handle.className = 'contao-live-edit-move-handle';
     handle.draggable = true;
     handle.title = 'Drag to rearrange';
     handle.setAttribute('aria-label', 'Drag to rearrange this element');
@@ -145,46 +145,46 @@
     handle.addEventListener('click', (event) => event.stopPropagation());
     handle.addEventListener('dragstart', (event) => {
       event.stopPropagation();
-      event.dataTransfer.setData('application/x-slowhouse-record', record.dataset.contaoLiveEditRecord);
+      event.dataTransfer.setData('application/x-contao-live-edit-record', record.dataset.contaoLiveEditRecord);
       event.dataTransfer.effectAllowed = 'move';
-      record.classList.add('slowhouse-is-moving');
+      record.classList.add('contao-live-edit-is-moving');
     });
-    handle.addEventListener('dragend', () => record.classList.remove('slowhouse-is-moving'));
+    handle.addEventListener('dragend', () => record.classList.remove('contao-live-edit-is-moving'));
     record.append(handle);
   };
 
   document.addEventListener('pointerover', (event) => {
     if (!isActive()) return;
     const record = recordForTarget(event.target);
-    if (record && !record.closest('.slowhouse-inline-bar, .slowhouse-edit-popover')) addMoveHandle(record);
+    if (record && !record.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover')) addMoveHandle(record);
   });
 
   document.addEventListener('dragover', (event) => {
-    if (!isActive() || (!isContentDrag(event) && !hasDragType(event, 'application/x-slowhouse-record'))) return;
+    if (!isActive() || (!isContentDrag(event) && !hasDragType(event, 'application/x-contao-live-edit-record'))) return;
     const record = recordForTarget(event.target);
     if (!record) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = isContentDrag(event) ? 'copy' : 'move';
-    document.querySelectorAll('.slowhouse-drop-before,.slowhouse-drop-after').forEach((node) => node.classList.remove('slowhouse-drop-before', 'slowhouse-drop-after'));
+    document.querySelectorAll('.contao-live-edit-drop-before,.contao-live-edit-drop-after').forEach((node) => node.classList.remove('contao-live-edit-drop-before', 'contao-live-edit-drop-after'));
     const placement = event.clientY < record.getBoundingClientRect().top + record.getBoundingClientRect().height / 2 ? 'before' : 'after';
-    record.classList.add(`slowhouse-drop-${placement}`);
+    record.classList.add(`contao-live-edit-drop-${placement}`);
   });
 
   document.addEventListener('dragleave', (event) => {
-    if (event.target === document.documentElement) document.querySelectorAll('.slowhouse-drop-before,.slowhouse-drop-after').forEach((node) => node.classList.remove('slowhouse-drop-before', 'slowhouse-drop-after'));
+    if (event.target === document.documentElement) document.querySelectorAll('.contao-live-edit-drop-before,.contao-live-edit-drop-after').forEach((node) => node.classList.remove('contao-live-edit-drop-before', 'contao-live-edit-drop-after'));
   });
 
   document.addEventListener('drop', async (event) => {
     const record = recordForTarget(event.target);
     if (!isActive() || !record) return;
-    const newType = event.dataTransfer?.getData('application/x-slowhouse-element');
-    const movingId = event.dataTransfer?.getData('application/x-slowhouse-record');
+    const newType = event.dataTransfer?.getData('application/x-contao-live-edit-element');
+    const movingId = event.dataTransfer?.getData('application/x-contao-live-edit-record');
     if (!newType && !movingId) return;
     event.preventDefault();
     event.stopPropagation();
     const rect = record.getBoundingClientRect();
     const placement = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-    document.querySelectorAll('.slowhouse-drop-before,.slowhouse-drop-after').forEach((node) => node.classList.remove('slowhouse-drop-before', 'slowhouse-drop-after'));
+    document.querySelectorAll('.contao-live-edit-drop-before,.contao-live-edit-drop-after').forEach((node) => node.classList.remove('contao-live-edit-drop-before', 'contao-live-edit-drop-after'));
     try {
       if (newType) {
         setMessage('Adding element…');
@@ -204,16 +204,16 @@
   const openLinkEditor = (link) => {
     closePopover();
     popover = document.createElement('form');
-    popover.className = 'slowhouse-edit-popover slowhouse-link-popover';
+    popover.className = 'contao-live-edit-edit-popover contao-live-edit-link-popover';
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-label', 'Edit link');
-    popover.innerHTML = '<div class="slowhouse-popover-heading">Edit link</div>' +
+    popover.innerHTML = '<div class="contao-live-edit-popover-heading">Edit link</div>' +
       '<label>Text<input name="label" maxlength="255" required></label>' +
       '<label>URL<input name="url" maxlength="2048" placeholder="https://… or /contact" required></label>' +
       '<label>Title<input name="title" maxlength="255"></label>' +
       '<label>Lightbox group<input name="rel" maxlength="64" placeholder="e.g. gallery"></label>' +
-      '<label class="slowhouse-popover-check"><input name="target" type="checkbox"> Open in a new tab</label>' +
-      '<div class="slowhouse-popover-actions"><span class="slowhouse-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save link</button></div>';
+      '<label class="contao-live-edit-popover-check"><input name="target" type="checkbox"> Open in a new tab</label>' +
+      '<div class="contao-live-edit-popover-actions"><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save link</button></div>';
     document.body.append(popover);
     popover.elements.label.value = link.textContent.trim();
     popover.elements.url.value = link.getAttribute('href') || '';
@@ -227,7 +227,7 @@
     popover.addEventListener('submit', async (event) => {
       event.preventDefault();
       const submit = popover.querySelector('[type="submit"]');
-      const message = popover.querySelector('.slowhouse-popover-status');
+      const message = popover.querySelector('.contao-live-edit-popover-status');
       submit.disabled = true;
       message.textContent = 'Saving…';
       try {
@@ -276,28 +276,28 @@
 
     const caption = image.closest('figure')?.querySelector('figcaption')?.innerText.trim() || '';
     popover = document.createElement('form');
-    popover.className = 'slowhouse-edit-popover slowhouse-image-modal';
+    popover.className = 'contao-live-edit-edit-popover contao-live-edit-image-modal';
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-modal', 'true');
     popover.setAttribute('aria-label', 'Edit image');
-    popover.innerHTML = '<div class="slowhouse-image-modal-card">' +
-      '<header class="slowhouse-image-modal-header"><div><span class="slowhouse-modal-kicker">IMAGE</span><h2>Replace or edit image</h2><p>Upload a new image and update its key display settings.</p></div><button type="button" class="slowhouse-modal-close" data-action="cancel" aria-label="Close">×</button></header>' +
-      '<div class="slowhouse-image-modal-content"><div class="slowhouse-image-preview"><img alt="Current image preview"></div>' +
-      '<div class="slowhouse-image-dropzone" tabindex="0" role="button" aria-label="Choose or drop an image"><span class="slowhouse-upload-icon" aria-hidden="true">↑</span><strong data-file-name>Drop an image here</strong><span>JPG, PNG, GIF, WebP or AVIF · up to 15 MB</span><div class="slowhouse-image-source-actions"><button type="button" data-action="browse">Upload image</button><button type="button" data-action="library">Choose from library</button></div><input name="file" type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/avif" hidden></div>' +
-      '<section class="slowhouse-image-library" data-image-library hidden aria-label="Contao file library"></section>' +
-      '<div class="slowhouse-image-fields"><label>Alternative text<input name="alt" maxlength="255" placeholder="Describe the image"></label><label>Image title<input name="title" maxlength="255" placeholder="Optional title"></label><label class="slowhouse-caption-field">Caption<textarea name="caption" maxlength="500" rows="2" placeholder="Optional caption"></textarea></label></div></div>' +
-      '<footer class="slowhouse-image-modal-footer"><span class="slowhouse-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save image</button></footer></div>';
+    popover.innerHTML = '<div class="contao-live-edit-image-modal-card">' +
+      '<header class="contao-live-edit-image-modal-header"><div><span class="contao-live-edit-modal-kicker">IMAGE</span><h2>Replace or edit image</h2><p>Upload a new image and update its key display settings.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header>' +
+      '<div class="contao-live-edit-image-modal-content"><div class="contao-live-edit-image-preview"><img alt="Current image preview"></div>' +
+      '<div class="contao-live-edit-image-dropzone" tabindex="0" role="button" aria-label="Choose or drop an image"><span class="contao-live-edit-upload-icon" aria-hidden="true">↑</span><strong data-file-name>Drop an image here</strong><span>JPG, PNG, GIF, WebP or AVIF · up to 15 MB</span><div class="contao-live-edit-image-source-actions"><button type="button" data-action="browse">Upload image</button><button type="button" data-action="library">Choose from library</button></div><input name="file" type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/avif" hidden></div>' +
+      '<section class="contao-live-edit-image-library" data-image-library hidden aria-label="Contao file library"></section>' +
+      '<div class="contao-live-edit-image-fields"><label>Alternative text<input name="alt" maxlength="255" placeholder="Describe the image"></label><label>Image title<input name="title" maxlength="255" placeholder="Optional title"></label><label class="contao-live-edit-caption-field">Caption<textarea name="caption" maxlength="500" rows="2" placeholder="Optional caption"></textarea></label></div></div>' +
+      '<footer class="contao-live-edit-image-modal-footer"><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save image</button></footer></div>';
     document.body.append(popover);
-    const preview = popover.querySelector('.slowhouse-image-preview img');
+    const preview = popover.querySelector('.contao-live-edit-image-preview img');
     preview.src = image.currentSrc || image.src;
     popover.elements.alt.value = image.alt || '';
     popover.elements.title.value = image.title || '';
     popover.elements.caption.value = caption;
 
     const fileInput = popover.elements.file;
-    const dropzone = popover.querySelector('.slowhouse-image-dropzone');
+    const dropzone = popover.querySelector('.contao-live-edit-image-dropzone');
     const fileName = popover.querySelector('[data-file-name]');
-    const uploadStatus = popover.querySelector('.slowhouse-popover-status');
+    const uploadStatus = popover.querySelector('.contao-live-edit-popover-status');
     const libraryPanel = popover.querySelector('[data-image-library]');
     let selectedFile = null;
     let selectedUuid = '';
@@ -333,7 +333,7 @@
       libraryPanel.hidden = false;
       libraryPanel.replaceChildren();
       const loading = document.createElement('p');
-      loading.className = 'slowhouse-library-message';
+      loading.className = 'contao-live-edit-library-message';
       loading.textContent = 'Loading your Contao files…';
       libraryPanel.append(loading);
 
@@ -347,12 +347,12 @@
         if (!response.ok) throw new Error(result.error || 'Could not load the Contao file library.');
 
         const header = document.createElement('div');
-        header.className = 'slowhouse-library-header';
+        header.className = 'contao-live-edit-library-header';
         const title = document.createElement('strong');
         title.textContent = result.folder?.name || 'Contao file library';
         header.append(title);
         const navigation = document.createElement('div');
-        navigation.className = 'slowhouse-library-navigation';
+        navigation.className = 'contao-live-edit-library-navigation';
         if (libraryFolders.length) {
           const back = document.createElement('button');
           back.type = 'button';
@@ -368,13 +368,13 @@
         header.append(navigation);
 
         const grid = document.createElement('div');
-        grid.className = 'slowhouse-library-grid';
+        grid.className = 'contao-live-edit-library-grid';
         for (const item of result.items) {
           const choice = document.createElement('button');
           choice.type = 'button';
-          choice.className = item.type === 'folder' ? 'slowhouse-library-item is-folder' : 'slowhouse-library-item';
+          choice.className = item.type === 'folder' ? 'contao-live-edit-library-item is-folder' : 'contao-live-edit-library-item';
           if (item.type === 'folder') {
-            choice.innerHTML = '<span class="slowhouse-library-folder-icon" aria-hidden="true">▰</span>';
+            choice.innerHTML = '<span class="contao-live-edit-library-folder-icon" aria-hidden="true">▰</span>';
             choice.addEventListener('click', () => { libraryFolders.push(item.uuid); loadLibrary(); });
           } else {
             const thumbnail = document.createElement('img');
@@ -403,7 +403,7 @@
         libraryPanel.replaceChildren(header, grid);
         if (!result.items.length) {
           const empty = document.createElement('p');
-          empty.className = 'slowhouse-library-message';
+          empty.className = 'contao-live-edit-library-message';
           empty.textContent = 'No folders or images in this location.';
           libraryPanel.append(empty);
         }
@@ -483,7 +483,7 @@
   };
 
   document.addEventListener('click', (event) => {
-    if (!isActive() || replayingClick || !event.target.closest('a') || event.target.closest('.slowhouse-inline-bar, .slowhouse-edit-popover, [data-inline-ignore-links]')) return;
+    if (!isActive() || replayingClick || !event.target.closest('a') || event.target.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover, [data-inline-ignore-links]')) return;
 
     const anchor = event.target.closest('a');
     event.preventDefault();
@@ -513,7 +513,7 @@
     const directLink = event.target.closest('a');
     if (directLink?.closest('[data-inline-ignore-links]')) return;
     const link = directLink || elementAtPoint('a[href]', event.clientX, event.clientY);
-    if (link?.closest('[data-contao-live-edit-type="hyperlink"]') && !link.closest('.slowhouse-inline-bar, .slowhouse-edit-popover')) {
+    if (link?.closest('[data-contao-live-edit-type="hyperlink"]') && !link.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover')) {
       if (pendingClick) window.clearTimeout(pendingClick.timer);
       pendingClick = null;
       event.preventDefault();
@@ -522,7 +522,7 @@
       return;
     }
     const image = event.target.closest('img') || elementAtPoint('img', event.clientX, event.clientY);
-    if (image?.closest('[data-contao-live-edit-type="image"]') && !image.closest('.slowhouse-edit-popover')) {
+    if (image?.closest('[data-contao-live-edit-type="image"]') && !image.closest('.contao-live-edit-edit-popover')) {
       if (pendingClick) window.clearTimeout(pendingClick.timer);
       pendingClick = null;
       event.preventDefault();
