@@ -23,7 +23,7 @@ final class EditorController extends AbstractController
         }
 
         return $this->render('@ContaoLiveEdit/editor.html.twig', [
-            'theme' => 'dark' === ($GLOBALS['TL_CONFIG']['contaoLiveEditTheme'] ?? 'light') ? 'dark' : 'light',
+            'theme' => 'light' === ($GLOBALS['TL_CONFIG']['contaoLiveEditTheme'] ?? 'dark') ? 'light' : 'dark',
         ]);
     }
 }

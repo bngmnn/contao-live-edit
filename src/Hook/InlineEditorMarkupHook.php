@@ -69,19 +69,19 @@ final class InlineEditorMarkupHook
         }
 
         $token = $container->get('security.csrf.token_manager')->getToken('contao_live_edit')->getValue();
-        $theme = ('dark' === ($GLOBALS['TL_CONFIG']['contaoLiveEditTheme'] ?? 'light')) ? 'dark' : 'light';
+        $theme = ('light' === ($GLOBALS['TL_CONFIG']['contaoLiveEditTheme'] ?? 'dark')) ? 'light' : 'dark';
         $buffer = preg_replace_callback('/<html\b[^>]*>/i', static function (array $match) use ($theme): string {
             $tag = preg_replace('/\sdata-contao-live-edit-theme=("|\')[^"\']*\1/i', '', $match[0]) ?? $match[0];
             return substr($tag, 0, -1).' data-contao-live-edit-theme="'.$theme.'">';
         }, $buffer, 1) ?? $buffer;
-        $head = '<meta name="contao-live-edit-token" content="'.htmlspecialchars($token, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"><link rel="stylesheet" href="/bundles/contaoliveedit/css/inline-edit.css?v=4">';
+        $head = '<meta name="contao-live-edit-token" content="'.htmlspecialchars($token, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"><link rel="stylesheet" href="/bundles/contaoliveedit/css/inline-edit.css?v=5">';
         if (str_contains($buffer, '</head>')) {
             $buffer = preg_replace('~</head>~i', $head.'</head>', $buffer, 1) ?? $buffer;
         } else {
             $buffer = $head.$buffer;
         }
 
-        $script = '<script src="/assets/hugerte/js/hugerte.min.js" defer></script><script src="/bundles/contaoliveedit/js/inline-edit.js?v=4" defer></script>';
+        $script = '<script src="/assets/hugerte/js/hugerte.min.js" defer></script><script src="/bundles/contaoliveedit/js/inline-edit.js?v=5" defer></script>';
         if (str_contains($buffer, '</body>')) {
             return preg_replace('~</body>~i', $script.'</body>', $buffer, 1) ?? $buffer;
         }

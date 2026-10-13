@@ -10,7 +10,7 @@ $GLOBALS['TL_DCA']['tl_settings']['fields']['contaoLiveEditTheme'] = [
     'inputType' => 'select',
     'options' => ['light', 'dark'],
     'reference' => &$GLOBALS['TL_LANG']['tl_settings']['contaoLiveEditThemeOptions'],
-    'default' => 'light',
+    'default' => 'dark',
     'eval' => ['tl_class' => 'w50', 'includeBlankOption' => false],
     'save_callback' => [static function ($value) {
         return in_array($value, ['light', 'dark'], true) ? $value : 'light';

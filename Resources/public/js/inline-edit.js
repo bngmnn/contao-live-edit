@@ -683,14 +683,17 @@
         (dependsOnImageToggle ? imageOptions : normalFields).push(field);
       }
       const dates = [];
-      const remaining = [];
+      const orderedFields = [];
       for (let index = 0; index < normalFields.length; index++) {
         const field = normalFields[index];
         if (field.name === 'start' && normalFields[index + 1]?.name === 'stop') {
           dates.push(field, normalFields[++index]);
-        } else remaining.push(field);
+        } else {
+          orderedFields.push(field);
+          if (imageSelectorNames.has(field.name)) orderedFields.push(...imageOptions.splice(0));
+        }
       }
-      const orderedFields = [...remaining, ...dates, ...imageOptions];
+      orderedFields.push(...imageOptions, ...dates);
       for (let index = 0; index < orderedFields.length; index++) {
         const field = orderedFields[index];
         if (field.name === 'start' && orderedFields[index + 1]?.name === 'stop') {

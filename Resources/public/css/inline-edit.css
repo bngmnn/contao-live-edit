@@ -51,9 +51,10 @@ body.contao-live-edit-text-editing [data-contao-live-edit-record]:hover>.contao-
 
 /* Quick edit controls */
 .contao-live-edit-element-field select{appearance:none;padding-right:40px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%2340584a' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 6 5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center;background-size:15px}
-.contao-live-edit-element-field.is-toggle-field{position:relative;display:flex;min-height:40px;align-items:center;justify-content:space-between;gap:14px;padding:7px 12px;border:1px solid #d9ded4;border-radius:8px;background:#fff;color:var(--green-dark)}
-.contao-live-edit-element-field.is-toggle-field .contao-live-edit-element-field-title{margin:0;font-size:12px;letter-spacing:0}
-.contao-live-edit-element-field.is-toggle-field input[type=checkbox]{position:relative;flex:none;width:42px;height:24px;margin:0;appearance:none;border:0;border-radius:999px;background:#d9ded4;cursor:pointer;transition:background .16s ease}
+.contao-live-edit-element-field.is-toggle-field{position:relative;grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;align-items:center;gap:3px 18px;min-height:56px;padding:11px 14px;border:1px solid #d9ded4;border-radius:8px;background:#fff;color:var(--green-dark)}
+.contao-live-edit-element-field.is-toggle-field .contao-live-edit-element-field-title{grid-column:1;grid-row:1;margin:0;font-size:12px;letter-spacing:0}
+.contao-live-edit-element-field.is-toggle-field small{grid-column:1;grid-row:2;margin:0}
+.contao-live-edit-element-field.is-toggle-field input[type=checkbox]{position:relative;grid-column:2;grid-row:1/span 2;justify-self:end;flex:none;width:42px;height:24px;margin:0;appearance:none;border:0;border-radius:999px;background:#c9cfca;cursor:pointer;transition:background .16s ease}
 .contao-live-edit-element-field.is-toggle-field input[type=checkbox]::after{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0002;content:"";transition:transform .16s ease}
 .contao-live-edit-element-field.is-toggle-field input[type=checkbox]:checked{background:#405b49}
 .contao-live-edit-element-field.is-toggle-field input[type=checkbox]:checked::after{transform:translateX(18px)}
