@@ -770,7 +770,6 @@
               branding: false,
               promotion: false,
               statusbar: false,
-              element_format: 'html',
               plugins: 'autosave charmap code fullscreen help image importcss link lists searchreplace stripnbsp table visualblocks visualchars',
               menubar: 'file edit insert view format table help',
               toolbar: 'link unlink | image | blocks | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | code',
