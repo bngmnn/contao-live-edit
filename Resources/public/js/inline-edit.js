@@ -151,6 +151,14 @@
     });
     handle.addEventListener('dragend', () => record.classList.remove('contao-live-edit-is-moving'));
     record.append(handle);
+    const settings = document.createElement('button');
+    settings.type = 'button';
+    settings.className = 'contao-live-edit-settings-handle';
+    settings.title = 'Edit element settings';
+    settings.setAttribute('aria-label', 'Edit element settings');
+    settings.textContent = '⚙';
+    settings.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openElementEditor(record); });
+    record.append(settings);
   };
 
   document.addEventListener('pointerover', (event) => {
@@ -482,6 +490,202 @@
     popover.querySelector('[name="alt"]').focus();
   };
 
+  const openElementEditor = async (record) => {
+    const id = record?.dataset.contaoLiveEditRecord;
+    if (!id) return;
+    closePopover();
+    popover = document.createElement('form');
+    popover.className = 'contao-live-edit-edit-popover contao-live-edit-element-modal';
+    popover.setAttribute('role', 'dialog');
+    popover.setAttribute('aria-modal', 'true');
+    popover.setAttribute('aria-label', 'Edit content element');
+    popover.innerHTML = '<header class="contao-live-edit-element-header"><div><span class="contao-live-edit-modal-kicker">CONTENT ELEMENT</span><h2>Element settings</h2><p>All available Contao and extension fields for this element.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header><div class="contao-live-edit-element-fields" data-element-fields><div class="contao-live-edit-library-message">Loading settings…</div></div><footer class="contao-live-edit-image-modal-footer"><button type="button" class="contao-live-edit-delete-element" data-action="delete">Remove element</button><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save changes</button></footer>';
+    document.body.append(popover);
+    popover.addEventListener('click', (event) => event.stopPropagation());
+    popover.querySelectorAll('[data-action="cancel"]').forEach((button) => button.addEventListener('click', closePopover));
+    const fieldPanel = popover.querySelector('[data-element-fields]');
+    const status = popover.querySelector('.contao-live-edit-popover-status');
+    popover.querySelector('[data-action="delete"]').addEventListener('click', async () => {
+      if (!window.confirm('Remove this element from the page? This cannot be undone.')) return;
+      const button = popover.querySelector('[data-action="delete"]'); button.disabled = true; status.textContent = 'Removing…';
+      try { await request('/contao-live-edit/delete-element', { id }); closePopover(); window.location.reload(); }
+      catch (error) { button.disabled = false; status.textContent = error.message || 'Could not remove this element.'; status.classList.add('is-error'); }
+    });
+
+    const controlFor = (field) => {
+      const wrapper = document.createElement('label');
+      wrapper.className = 'contao-live-edit-element-field';
+      const title = document.createElement('span');
+      title.className = 'contao-live-edit-element-field-title';
+      title.textContent = field.label || field.name;
+      wrapper.append(title);
+      let input;
+      if (['select', 'radio', 'pageTree'].includes(field.widget) && field.options?.length) {
+        input = document.createElement('select');
+        if (field.widget === 'pageTree') input.multiple = Boolean(field.multiple);
+        if (field.widget === 'select') {
+          const blank = document.createElement('option'); blank.value = ''; blank.textContent = 'Choose…'; input.append(blank);
+        }
+        for (const option of field.options) {
+          const item = document.createElement('option'); item.value = option.value; item.textContent = option.label; input.append(item);
+        }
+        if (input.multiple) for (const option of input.options) option.selected = (Array.isArray(field.value) ? field.value : [field.value]).map(String).includes(option.value);
+        else input.value = String(field.value ?? '');
+      } else if (field.widget === 'fileTree' || field.widget === 'textarea' || ['listWizard', 'rowWizard', 'tableWizard', 'imageSize'].includes(field.widget) || Array.isArray(field.value)) {
+        input = document.createElement('textarea'); input.rows = ['listWizard', 'rowWizard', 'tableWizard'].includes(field.widget) ? 5 : 4;
+        if (field.widget === 'fileTree') input.value = JSON.stringify(Array.isArray(field.value) ? field.value : (field.value ? [field.value] : []));
+        else if (field.widget === 'listWizard') input.value = (Array.isArray(field.value) ? field.value : []).map(String).join('\n');
+        else if (['rowWizard', 'tableWizard'].includes(field.widget)) input.value = (Array.isArray(field.value) ? field.value : []).map((row) => (Array.isArray(row) ? row : Object.values(row || {})).map(String).join('\t')).join('\n');
+        else if (['imageSize'].includes(field.widget) || Array.isArray(field.value)) input.value = JSON.stringify(field.value ?? [], null, 2);
+        else input.value = String(field.value ?? '');
+      } else if (field.widget === 'inputUnit') {
+        input = document.createElement('span'); input.className = 'contao-live-edit-element-input-unit';
+        const amount = document.createElement('input'); amount.type = 'text'; amount.value = String(field.value?.value ?? ''); amount.dataset.unitValue = field.name;
+        const unit = document.createElement('select'); unit.dataset.unitName = field.name;
+        for (const option of field.options || []) { const item = document.createElement('option'); item.value = option.value; item.textContent = option.label; unit.append(item); }
+        unit.value = String(field.value?.unit ?? ''); input.append(amount, unit);
+      } else if (field.widget === 'checkbox' && field.options?.length) {
+        input = document.createElement('span'); input.className = 'contao-live-edit-element-check-options';
+        for (const option of field.options) {
+          const choice = document.createElement('span'); choice.className = 'contao-live-edit-element-check-option';
+          const box = document.createElement('input'); box.type = 'checkbox'; box.value = option.value; box.dataset.choiceField = field.name;
+          box.checked = Array.isArray(field.value) && field.value.map(String).includes(option.value);
+          const label = document.createElement('span'); label.textContent = option.label; choice.append(box, label); input.append(choice);
+        }
+      } else if (field.widget === 'checkbox') {
+        input = document.createElement('input'); input.type = 'checkbox';
+        input.checked = Array.isArray(field.value) ? field.value.length > 0 : Boolean(field.value);
+      } else {
+        const arrayValue = Array.isArray(field.value);
+        input = document.createElement(arrayValue ? 'textarea' : 'input');
+        if (!arrayValue) input.type = 'text';
+        input.value = arrayValue ? JSON.stringify(field.value, null, 2) : String(field.value ?? '');
+        if (arrayValue) input.rows = 4;
+        if (field.maxlength) input.maxLength = field.maxlength;
+      }
+      if (input.matches?.('input,textarea,select')) input.name = field.name;
+      input.dataset.widget = field.widget; input.dataset.options = JSON.stringify(field.options || []);
+      if (field.required && input.matches?.('input,textarea,select')) input.required = true;
+      wrapper.append(input);
+      if (field.description) { const hint = document.createElement('small'); hint.textContent = field.description; wrapper.append(hint); }
+      if (field.widget === 'fileTree') {
+        const choose = document.createElement('button'); choose.type = 'button'; choose.className = 'contao-live-edit-element-file-picker'; choose.textContent = 'Choose from Contao files';
+        const library = document.createElement('div'); library.className = 'contao-live-edit-element-file-library'; library.hidden = true;
+        const folders = [];
+        const load = async () => {
+          library.hidden = false; library.replaceChildren();
+          try {
+            const folder = folders.at(-1) || '';
+            const response = await fetch(`/contao-live-edit/image-library?all=1${folder ? `&folder=${encodeURIComponent(folder)}` : ''}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Could not load files.');
+            const heading = document.createElement('div'); heading.className = 'contao-live-edit-element-library-heading';
+            const title = document.createElement('strong'); title.textContent = result.folder?.name || 'Contao file library'; heading.append(title);
+            if (folders.length) { const back = document.createElement('button'); back.type = 'button'; back.textContent = '← Back'; back.addEventListener('click', () => { folders.pop(); load(); }); heading.append(back); }
+            const close = document.createElement('button'); close.type = 'button'; close.textContent = 'Close'; close.addEventListener('click', () => { library.hidden = true; }); heading.append(close); library.append(heading);
+            for (const item of result.items) {
+              const choice = document.createElement('button'); choice.type = 'button'; choice.className = 'contao-live-edit-element-file-choice';
+              const name = document.createElement('span'); name.textContent = `${item.type === 'folder' ? '▰ ' : '• '}${item.name}`; choice.append(name);
+              if (item.type === 'folder') choice.addEventListener('click', () => { folders.push(item.uuid); load(); });
+              else choice.addEventListener('click', () => {
+                let selected; try { selected = JSON.parse(input.value || '[]'); } catch { selected = []; }
+                if (!Array.isArray(selected)) selected = [];
+                selected = field.multiple ? (selected.includes(item.uuid) ? selected.filter((uuid) => uuid !== item.uuid) : [...selected, item.uuid]) : [item.uuid];
+                input.value = JSON.stringify(selected); input.dispatchEvent(new Event('input', { bubbles: true }));
+                choice.classList.toggle('is-selected', selected.includes(item.uuid));
+                if (!field.multiple) library.hidden = true;
+              });
+              library.append(choice);
+            }
+            if (!result.items.length) { const empty = document.createElement('small'); empty.textContent = 'No files in this folder.'; library.append(empty); }
+          } catch (error) { const message = document.createElement('small'); message.textContent = error.message || 'Could not load files.'; library.replaceChildren(message); }
+        };
+        choose.addEventListener('click', load); wrapper.append(choose, library);
+      }
+      return wrapper;
+    };
+
+    try {
+      const response = await fetch(`/contao-live-edit/element-fields/${encodeURIComponent(id)}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not load element settings.');
+      const type = record.dataset.contaoLiveEditType;
+      const videoType = ['youtube', 'vimeo'].includes(type);
+      popover.querySelector('h2').textContent = result.fields.length ? (videoType ? `Set ${type === 'youtube' ? 'YouTube' : 'Vimeo'} video` : `${type.replaceAll('_', ' ')} settings`) : 'No editable fields';
+      popover.querySelector('.contao-live-edit-element-header p').textContent = videoType ? 'Paste the video link, check the preview, then save.' : 'All available Contao and extension fields for this element.';
+      fieldPanel.replaceChildren();
+      const mainFields = videoType ? result.fields.filter((field) => [type, 'titleText'].includes(field.name)) : result.fields;
+      const extraFields = videoType ? result.fields.filter((field) => !mainFields.includes(field)) : [];
+      let videoPreview = null;
+      if (videoType) {
+        videoPreview = document.createElement('div'); videoPreview.className = 'contao-live-edit-element-video-preview';
+        const updateVideoPreview = (value) => {
+          const match = value.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{6,})/i);
+          const vimeo = value.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+          const youtubeId = match?.[1] || (/^[\w-]{11}$/.test(value) ? value : '');
+          const vimeoId = vimeo?.[1] || (/^\d{1,12}$/.test(value) ? value : '');
+          const source = type === 'youtube' && youtubeId ? `https://www.youtube-nocookie.com/embed/${youtubeId}` : type === 'vimeo' && vimeoId ? `https://player.vimeo.com/video/${vimeoId}` : '';
+          videoPreview.replaceChildren();
+          if (source) { const frame = document.createElement('iframe'); frame.src = source; frame.title = 'Video preview'; frame.loading = 'lazy'; frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'; frame.allowFullscreen = true; videoPreview.append(frame); }
+          else { const note = document.createElement('span'); note.textContent = 'Enter a valid video URL to preview it'; videoPreview.append(note); }
+        };
+        fieldPanel.append(videoPreview);
+        for (const field of mainFields) {
+          const displayField = field.name === type ? { ...field, label: `${type === 'youtube' ? 'YouTube' : 'Vimeo'} video URL`, value: field.value ? (type === 'youtube' ? `https://www.youtube.com/watch?v=${field.value}` : `https://vimeo.com/${field.value}`) : '' } : field;
+          const control = controlFor(displayField); fieldPanel.append(control);
+          if (field.name === type) control.querySelector('input,textarea,select')?.addEventListener('input', (event) => updateVideoPreview(event.target.value));
+        }
+        updateVideoPreview(String(mainFields.find((field) => field.name === type)?.value || ''));
+      } else for (const field of mainFields) fieldPanel.append(controlFor(field));
+      if (extraFields.length) {
+        const details = document.createElement('details'); details.className = 'contao-live-edit-element-extra';
+        const summary = document.createElement('summary'); summary.textContent = `Advanced settings · ${extraFields.length} fields`; details.append(summary);
+        for (const field of extraFields) details.append(controlFor(field));
+        fieldPanel.append(details);
+      }
+      if (!result.fields.length) { const empty = document.createElement('p'); empty.className = 'contao-live-edit-library-message'; empty.textContent = 'This element has no editable fields in its Contao configuration.'; fieldPanel.append(empty); }
+    } catch (error) {
+      fieldPanel.textContent = error.message || 'Could not load element settings.';
+      fieldPanel.classList.add('is-error');
+      return;
+    }
+
+    popover.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submit = popover.querySelector('[type="submit"]'); submit.disabled = true; status.textContent = 'Saving…'; status.classList.remove('is-error');
+      const values = {};
+      for (const input of fieldPanel.querySelectorAll('input,textarea,select')) {
+        if (input.dataset.choiceField) continue;
+        if (input.dataset.unitValue) { values[input.dataset.unitValue] = { ...(values[input.dataset.unitValue] || {}), value: input.value }; continue; }
+        if (input.dataset.unitName) { values[input.dataset.unitName] = { ...(values[input.dataset.unitName] || {}), unit: input.value }; continue; }
+        if (input.dataset.widget === 'checkbox') values[input.name] = input.checked;
+        else if (input.dataset.widget === 'pageTree' && input.multiple) values[input.name] = [...input.selectedOptions].map((option) => option.value);
+        else if (input.dataset.widget === 'fileTree') {
+          try { values[input.name] = JSON.parse(input.value || '[]'); } catch { status.textContent = 'Choose files from the library or enter valid JSON.'; status.classList.add('is-error'); submit.disabled = false; return; }
+        }
+        else if (input.dataset.widget === 'listWizard') values[input.name] = input.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        else if (['rowWizard', 'tableWizard'].includes(input.dataset.widget)) values[input.name] = input.value.split(/\r?\n/).filter(Boolean).map((line) => line.split('\t'));
+        else if (input.dataset.widget === 'imageSize' || (input.tagName === 'TEXTAREA' && input.value.trim().startsWith('['))) {
+          try { values[input.name] = JSON.parse(input.value); } catch { status.textContent = 'Enter valid JSON for this structured field.'; status.classList.add('is-error'); submit.disabled = false; return; }
+        }
+        else values[input.name] = input.value;
+      }
+      if (['youtube', 'vimeo'].includes(record.dataset.contaoLiveEditType)) {
+        const mediaType = record.dataset.contaoLiveEditType;
+        const mediaInput = fieldPanel.querySelector(`[name="${mediaType}"]`);
+        const inputValue = mediaInput?.value.trim() || '';
+        const match = mediaType === 'youtube' ? inputValue.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/i) : inputValue.match(/vimeo\.com\/(?:video\/)?(\d{1,12})/i);
+        values[mediaType] = match?.[1] || inputValue;
+      }
+      const choiceFields = new Set([...fieldPanel.querySelectorAll('[data-choice-field]')].map((input) => input.dataset.choiceField));
+      for (const name of choiceFields) values[name] = [...fieldPanel.querySelectorAll(`[data-choice-field="${CSS.escape(name)}"]:checked`)].map((input) => input.value);
+      try {
+        await request('/contao-live-edit/save-element-fields', { id, fields: values });
+        closePopover(); setMessage('Element saved'); window.setTimeout(() => window.location.reload(), 350);
+      } catch (error) { submit.disabled = false; status.textContent = error.message || 'Could not save element settings.'; status.classList.add('is-error'); }
+    });
+    popover.querySelector('[type="submit"]').focus();
+  };
+
   document.addEventListener('click', (event) => {
     if (!isActive() || replayingClick || !event.target.closest('a') || event.target.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover, [data-inline-ignore-links]')) return;
 
@@ -536,7 +740,15 @@
         const rect = candidate.getBoundingClientRect();
         return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
       });
-    if (!field || !isActive()) return;
+    if (!field || !isActive()) {
+      const record = recordForTarget(event.target);
+      if (record && !record.matches('[data-contao-live-edit-type=\"image\"],[data-contao-live-edit-type=\"hyperlink\"]')) {
+        if (pendingClick) window.clearTimeout(pendingClick.timer);
+        pendingClick = null;
+        event.preventDefault(); event.stopPropagation(); openElementEditor(record);
+      }
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     begin(field);

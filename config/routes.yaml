@@ -37,3 +37,18 @@ contao_live_edit_content_elements:
     path: /contao-live-edit/content-elements
     controller: ContaoLiveEdit\Controller\InlineContentSaveController::listContentElements
     methods: [GET]
+
+contao_live_edit_element_fields:
+    path: /contao-live-edit/element-fields/{id}
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::elementFields
+    methods: [GET]
+
+contao_live_edit_save_element_fields:
+    path: /contao-live-edit/save-element-fields
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::saveElementFields
+    methods: [POST]
+
+contao_live_edit_delete_element:
+    path: /contao-live-edit/delete-element
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::deleteElement
+    methods: [POST]

@@ -23,6 +23,12 @@ final class InlineEditorMarkupHook
 
         $recordId = htmlspecialchars((string) $row->id, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $recordType = htmlspecialchars((string) $row->type, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        if (!preg_match('/<[a-z][a-z0-9:-]*(\s[^<>]*?)?>/i', $content)) {
+            return '<div class="contao-live-edit-empty-element" data-contao-live-edit-record="'.$recordId.'" data-contao-live-edit-type="'.$recordType.'" aria-label="Empty '.$recordType.' element"><span class="contao-live-edit-empty-element-label">'.$recordType.'</span></div>';
+        }
+        if (preg_match('/<\s*(iframe|video|audio|embed|object)\b/i', $content)) {
+            return '<div class="contao-live-edit-media-element" data-contao-live-edit-record="'.$recordId.'" data-contao-live-edit-type="'.$recordType.'">'.$content.'</div>';
+        }
         $inserted = false;
 
         return preg_replace_callback(

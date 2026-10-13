@@ -159,6 +159,216 @@ final class InlineContentSaveController
         return new JsonResponse(['saved' => true, 'id' => (int) $element->id]);
     }
 
+    public function elementFields(Request $request): JsonResponse
+    {
+        $this->framework->initialize();
+
+        if (!$this->isAuthorizedEditor($request)) {
+            return new JsonResponse(['error' => 'Sign in to Contao as an administrator to edit this page.'], 403);
+        }
+
+        $id = filter_var($request->attributes->get('id') ?? $request->query->get('id'), FILTER_VALIDATE_INT);
+        $element = $id ? ContentModel::findByPk($id) : null;
+        if (!$element || !$this->isRegisteredContentElement((string) $element->type)) {
+            return new JsonResponse(['error' => 'This content element is not available.'], 404);
+        }
+
+        \Contao\Controller::loadDataContainer('tl_content');
+        System::loadLanguageFile('tl_content');
+        $connection = System::getContainer()->get('doctrine.dbal.default_connection');
+        $columns = array_change_key_case($connection->createSchemaManager()->listTableColumns('tl_content'), CASE_LOWER);
+        $fields = [];
+        foreach ($this->editablePaletteFields((string) $element->type) as $name => $config) {
+            if (!isset($columns[strtolower((string) $name)]) || in_array($name, ['id', 'pid', 'ptable', 'sorting', 'tstamp', 'type'], true)) continue;
+            $eval = $config['eval'] ?? [];
+            $widget = $config['inputType'] ?? '';
+            if (!in_array($widget, ['text', 'textarea', 'select', 'checkbox', 'radio', 'fileTree', 'pageTree', 'inputUnit'], true) || !empty($eval['readonly']) || !empty($eval['doNotShow'])) continue;
+
+            $label = $GLOBALS['TL_LANG']['tl_content'][$name][0] ?? ucwords(preg_replace('/([a-z])([A-Z])/', '$1 $2', $name));
+            $description = $GLOBALS['TL_LANG']['tl_content'][$name][1] ?? '';
+            $storedValue = $element->{$name};
+            $value = StringUtil::deserialize($storedValue);
+            if ('fileTree' === $widget) {
+                if (!empty($eval['multiple'])) {
+                    $storedItems = $storedValue ? StringUtil::deserialize($storedValue, true) : [];
+                    $value = array_map(static fn ($uuid): string => StringUtil::binToUuid($uuid), $storedItems);
+                } else {
+                    $value = $storedValue ? StringUtil::binToUuid($storedValue) : '';
+                }
+            } elseif ('pageTree' === $widget && !empty($eval['multiple'])) {
+                $value = StringUtil::deserialize($storedValue, true);
+            }
+            if ('checkbox' === $widget && !is_array($value)) $value = (bool) $value;
+            elseif (is_array($value) && empty($eval['multiple']) && !in_array($widget, ['checkbox', 'fileTree', 'pageTree', 'inputUnit', 'listWizard', 'rowWizard', 'tableWizard', 'imageSize'], true)) $value = (string) ($value['value'] ?? (array_is_list($value) ? ($value[0] ?? '') : ''));
+            elseif (null === $value) $value = '';
+
+            $options = [];
+            $rawOptions = $eval['options'] ?? $config['options'] ?? $config['reference'] ?? [];
+            if ('pageTree' === $widget) {
+                foreach ($connection->fetchAllAssociative('SELECT id,title FROM tl_page ORDER BY pid,sorting,title') as $page) $options[] = ['value' => (string) $page['id'], 'label' => (string) $page['title']];
+            }
+            if (is_array($rawOptions)) {
+                foreach ($rawOptions as $key => $optionLabel) {
+                    if (!is_scalar($optionLabel)) continue;
+                    $optionValue = array_is_list($rawOptions) ? (string) $optionLabel : (string) $key;
+                    $languageLabel = $GLOBALS['TL_LANG']['tl_content'][$name][$optionValue] ?? null;
+                    $options[] = ['value' => $optionValue, 'label' => is_string($languageLabel) ? $languageLabel : (string) $optionLabel];
+                }
+            }
+
+            $fields[] = ['name' => (string) $name, 'label' => is_array($label) ? (string) ($label[0] ?? $name) : (string) $label,
+                'description' => is_array($description) ? (string) ($description[0] ?? '') : (string) $description,
+                'widget' => $widget, 'value' => $value, 'options' => $options, 'multiple' => !empty($eval['multiple']),
+                'required' => !empty($eval['mandatory']), 'maxlength' => (int) ($eval['maxlength'] ?? 0)];
+        }
+
+        return new JsonResponse(['id' => (int) $element->id, 'type' => (string) $element->type, 'fields' => $fields]);
+    }
+
+    public function saveElementFields(Request $request): JsonResponse
+    {
+        $this->framework->initialize();
+        if (!$this->isAuthorizedEditor($request)) return new JsonResponse(['error' => 'Sign in to Contao as an administrator to edit this page.'], 403);
+
+        try { $payload = $request->toArray(); } catch (\Throwable) { return new JsonResponse(['error' => 'Invalid request body.'], 400); }
+        if (!$this->csrfTokenManager->isTokenValid(new CsrfToken('contao_live_edit', (string) ($payload['_token'] ?? '')))) return new JsonResponse(['error' => 'The edit session expired. Reload the page and try again.'], 419);
+
+        $id = filter_var($payload['id'] ?? null, FILTER_VALIDATE_INT);
+        $element = $id ? ContentModel::findByPk($id) : null;
+        $submitted = $payload['fields'] ?? null;
+        if (!$element || !$this->isRegisteredContentElement((string) $element->type) || !is_array($submitted) || count($submitted) > 100) return new JsonResponse(['error' => 'This content element cannot be edited.'], 404);
+
+        \Contao\Controller::loadDataContainer('tl_content');
+        $connection = System::getContainer()->get('doctrine.dbal.default_connection');
+        $columns = array_change_key_case($connection->createSchemaManager()->listTableColumns('tl_content'), CASE_LOWER);
+        $allowed = ['id', 'pid', 'ptable', 'sorting', 'tstamp', 'type'];
+        foreach ($this->editablePaletteFields((string) $element->type) as $name => $config) {
+            if (isset($columns[strtolower((string) $name)]) && !empty($config['inputType']) && empty($config['eval']['readonly']) && empty($config['eval']['doNotShow'])) $allowed[] = $name;
+        }
+
+        foreach ($submitted as $name => $value) {
+            if (!is_string($name) || !in_array($name, $allowed, true) || in_array($name, ['id', 'pid', 'ptable', 'sorting', 'tstamp', 'type'], true)) return new JsonResponse(['error' => 'One of the submitted fields is not editable.'], 422);
+            $config = $GLOBALS['TL_DCA']['tl_content']['fields'][$name] ?? [];
+            $widget = $config['inputType'] ?? '';
+            if (in_array($widget, ['listWizard', 'rowWizard', 'tableWizard', 'imageSize'], true) && is_array($value)) {
+                if (count($value) > 100 || strlen(serialize($value)) > 20000) return new JsonResponse(['error' => 'The structured field is too large.'], 422);
+                $value = serialize($value);
+            } elseif ('inputUnit' === $widget && is_array($value) && is_scalar($value['value'] ?? null)) {
+                $numericValue = (string) $value['value'];
+                $unitValue = (string) ($value['unit'] ?? '');
+                if (mb_strlen($numericValue) > 100) return new JsonResponse(['error' => 'A field value is too long.'], 422);
+                $unitOptions = $config['eval']['options'] ?? $config['options'] ?? $config['reference'] ?? [];
+                $validUnits = is_array($unitOptions) ? (array_is_list($unitOptions) ? array_map('strval', $unitOptions) : array_map('strval', array_keys($unitOptions))) : [];
+                if ($validUnits && !in_array($unitValue, $validUnits, true)) return new JsonResponse(['error' => 'Choose a valid unit.'], 422);
+                $value = serialize(['value' => $numericValue, 'unit' => $unitValue]);
+            } elseif ('checkbox' === $widget && is_array($value)) {
+                $rawOptions = $config['eval']['options'] ?? $config['options'] ?? $config['reference'] ?? [];
+                $allowedOptions = is_array($rawOptions) ? (array_is_list($rawOptions) ? array_map('strval', $rawOptions) : array_map('strval', array_keys($rawOptions))) : [];
+                foreach ($value as $option) if (!is_scalar($option) || ($allowedOptions && !in_array((string) $option, $allowedOptions, true))) return new JsonResponse(['error' => 'Choose a valid option.'], 422);
+                $value = serialize(array_values($value));
+            } elseif ('fileTree' === $widget) {
+                $items = is_array($value) ? $value : ('' === (string) $value ? [] : [(string) $value]);
+                $normalized = [];
+                foreach ($items as $selected) {
+                    if (!is_string($selected) || !\Contao\Validator::isUuid($selected)) return new JsonResponse(['error' => 'Choose a file from the Contao picker.'], 422);
+                    $fileModel = FilesModel::findByUuid($selected);
+                    if (!$fileModel || 'file' !== $fileModel->type) return new JsonResponse(['error' => 'Choose a file available in the Contao file library.'], 422);
+                    $normalized[] = $fileModel->uuid;
+                }
+                $value = !empty($config['eval']['multiple']) ? serialize($normalized) : ($normalized[0] ?? '');
+            } elseif ('pageTree' === $widget) {
+                $items = is_array($value) ? $value : ('' === (string) $value ? [] : [(string) $value]);
+                $normalized = [];
+                foreach ($items as $selected) {
+                    if (!filter_var($selected, FILTER_VALIDATE_INT) || !\Contao\PageModel::findByPk((int) $selected)) return new JsonResponse(['error' => 'Choose a page from the page list.'], 422);
+                    $normalized[] = (int) $selected;
+                }
+                $value = !empty($config['eval']['multiple']) ? serialize($normalized) : ($normalized[0] ?? '');
+            } elseif (is_array($value)) {
+                if (count($value) > 100 || strlen(serialize($value)) > 20000) return new JsonResponse(['error' => 'The structured field is too large.'], 422);
+                $value = serialize($value);
+            } elseif ('checkbox' === $widget) {
+                $value = $value ? 1 : '';
+            } elseif (is_scalar($value) || null === $value) {
+                $value = (string) ($value ?? '');
+                $limit = (int) ($config['eval']['maxlength'] ?? 10000);
+                if (mb_strlen($value) > min(max($limit, 1), 20000)) return new JsonResponse(['error' => 'A field value is too long.'], 422);
+                if ('youtube' === $name && !preg_match('/^[\w-]{11}$/', $value)) return new JsonResponse(['error' => 'Enter a valid YouTube video URL.'], 422);
+                if ('vimeo' === $name && !preg_match('/^\d{1,12}$/', $value)) return new JsonResponse(['error' => 'Enter a valid Vimeo video URL.'], 422);
+                $options = $config['eval']['options'] ?? $config['options'] ?? $config['reference'] ?? [];
+                if (in_array($widget, ['select', 'radio'], true) && is_array($options) && $options) {
+                    $validOptions = array_is_list($options) ? array_map('strval', $options) : array_map('strval', array_keys($options));
+                    if (!in_array($value, $validOptions, true)) return new JsonResponse(['error' => 'Choose a valid option.'], 422);
+                }
+                $previous = StringUtil::deserialize($element->{$name});
+                if ('inputUnit' === $widget) $value = serialize(['value' => $value, 'unit' => (string) ($submitted[$name]['unit'] ?? '')]);
+                elseif (is_array($previous) && !in_array($widget, ['checkbox', 'fileTree', 'pageTree'], true)) {
+                    if (array_key_exists('value', $previous)) $previous['value'] = $value;
+                    elseif (array_is_list($previous)) $previous[0] = $value;
+                    $value = serialize($previous);
+                }
+            } else return new JsonResponse(['error' => 'Unsupported field value.'], 422);
+
+            $element->{$name} = $value;
+        }
+
+        $element->tstamp = time();
+        $element->save();
+        return new JsonResponse(['saved' => true, 'id' => (int) $element->id]);
+    }
+
+    public function deleteElement(Request $request): JsonResponse
+    {
+        $this->framework->initialize();
+        if (!$this->isAuthorizedEditor($request)) return new JsonResponse(['error' => 'Sign in to Contao as an administrator to edit this page.'], 403);
+        try { $payload = $request->toArray(); } catch (\Throwable) { return new JsonResponse(['error' => 'Invalid request body.'], 400); }
+        if (!$this->csrfTokenManager->isTokenValid(new CsrfToken('contao_live_edit', (string) ($payload['_token'] ?? '')))) return new JsonResponse(['error' => 'The edit session expired. Reload the page and try again.'], 419);
+        $id = filter_var($payload['id'] ?? null, FILTER_VALIDATE_INT);
+        $element = $id ? ContentModel::findByPk($id) : null;
+        if (!$element || !$this->isRegisteredContentElement((string) $element->type)) return new JsonResponse(['error' => 'This content element cannot be removed.'], 404);
+
+        $connection = System::getContainer()->get('doctrine.dbal.default_connection');
+        $remove = static function (int $recordId) use (&$remove, $connection): void {
+            $children = $connection->fetchFirstColumn("SELECT id FROM tl_content WHERE pid=? AND ptable='tl_content'", [$recordId]);
+            foreach ($children as $childId) $remove((int) $childId);
+            $connection->delete('tl_content', ['id' => $recordId]);
+        };
+        $remove((int) $element->id);
+        return new JsonResponse(['saved' => true, 'id' => (int) $element->id]);
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function editablePaletteFields(string $type): array
+    {
+        $dca = $GLOBALS['TL_DCA']['tl_content'] ?? [];
+        $fields = $dca['fields'] ?? [];
+        $palette = $dca['palettes'][$type] ?? $dca['palettes']['default'] ?? '';
+        $names = [];
+        $readPalette = static function (mixed $value) use (&$names): void {
+            if (!is_string($value)) return;
+            $value = preg_replace('/\{[^}]*\}/', '', $value) ?? $value;
+            foreach (preg_split('/[,;]/', $value) ?: [] as $name) {
+                $name = trim($name, " \t\n\r\0\x0B[]");
+                if ('' !== $name && preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $name)) $names[$name] = true;
+            }
+        };
+        $readPalette($palette);
+        foreach ($dca['subpalettes'] ?? [] as $selector => $subpalette) {
+            if (isset($names[$selector])) $readPalette($subpalette);
+        }
+        if (!$names) $names = array_fill_keys(array_keys($fields), true);
+
+        $editable = [];
+        foreach (array_keys($names) as $name) {
+            $config = $fields[$name] ?? null;
+            if (!is_array($config) || in_array($name, ['id', 'pid', 'ptable', 'sorting', 'tstamp', 'type'], true)) continue;
+            if (empty($config['inputType']) || !empty($config['eval']['readonly']) || !empty($config['eval']['doNotShow'])) continue;
+            $editable[$name] = $config;
+        }
+
+        return $editable;
+    }
+
     public function saveImage(Request $request): JsonResponse
     {
         $this->framework->initialize();
@@ -269,6 +479,7 @@ final class InlineContentSaveController
         }
 
         $folderUuid = trim((string) $request->query->get('folder', ''));
+        $allFiles = $request->query->getBoolean('all');
         if ('' !== $folderUuid) {
             if (!\Contao\Validator::isUuid($folderUuid)) {
                 return new JsonResponse(['error' => 'Choose a valid folder.'], 422);
@@ -308,12 +519,12 @@ final class InlineContentSaveController
 
                 $file = new File($entry->path);
 
-                if (!$file->isImage) {
+                if (!$file->isImage && !$allFiles) {
                     continue;
                 }
 
                 $items[] = [
-                    'type' => 'image',
+                    'type' => $file->isImage ? 'image' : 'file',
                     'uuid' => StringUtil::binToUuid($entry->uuid),
                     'name' => $entry->name,
                     'path' => $entry->path,

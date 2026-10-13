@@ -2,7 +2,7 @@
 
 A lightweight visual editing bundle for Contao. It adds a live editor at `/contao-live-edit` and an in-page toolbar for logged-in Contao administrators. Text and headlines can be edited in place; images can be replaced by upload or selected from the Contao file library; links can be edited from a contextual form; and content elements can be rearranged or added by drag and drop.
 
-The element picker reads Contao's registered `TL_CTE` catalog at runtime. This includes built-in content elements and elements registered by installed extensions. New records receive the defaults available in `tl_content`'s DCA; extension-specific required settings can then be completed in the Contao back end.
+The element picker reads Contao's registered `TL_CTE` catalog at runtime. This includes built-in content elements and elements registered by installed extensions. New records receive the defaults available in `tl_content`'s DCA. In the frontend, each rendered element gets a move handle and a settings control; settings are generated from that element type's active DCA palette, including palette fields added by extensions. Standard selectors, checkboxes, file and page pickers, structured rows, and custom scalar fields use the same editor surface. Headlines, text, links, images, and video embeds have focused editing flows.
 
 ## Install from GitHub
 
@@ -26,7 +26,8 @@ Then sign in as a Contao administrator and visit `/contao-live-edit`. The fronte
 ## Notes
 
 - Edit and upload endpoints require an authenticated Contao administrator and a CSRF token.
-- Dragging a new element creates its Contao record with DCA defaults. Custom elements with additional mandatory extension settings may need completion in the back end before they render correctly.
+- Dragging a new element creates its Contao record with DCA defaults. Double-click text to edit it directly; use the element settings control for the full palette, advanced options, and removal.
+- Extension widgets that Contao exposes through a DCA palette are included in the generated settings editor. Highly specialized widgets use a structured fallback editor, and extension-specific callbacks that only run in the back end may still need their native Contao form.
 - The bundle has not yet been submitted to the Contao Manager catalog. Composer VCS installation is supported.
 
 ## License
