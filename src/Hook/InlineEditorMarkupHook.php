@@ -75,7 +75,7 @@ final class InlineEditorMarkupHook
             $tag = preg_replace('/\sdata-contao-live-edit-theme=("|\')[^"\']*\1/i', '', $match[0]) ?? $match[0];
             return substr($tag, 0, -1).' data-contao-live-edit-theme="'.$theme.'">';
         }, $buffer, 1) ?? $buffer;
-        $head = '<meta name="contao-live-edit-token" content="'.htmlspecialchars($token, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"><link rel="stylesheet" href="/bundles/contaoliveedit/css/inline-edit.css?v=6">';
+        $head = '<meta name="contao-live-edit-inline-token" content="'.htmlspecialchars($token, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"><link rel="stylesheet" href="/bundles/contaoliveedit/css/inline-edit.css?v=6">';
         if (str_contains($buffer, '</head>')) {
             $buffer = preg_replace('~</head>~i', $head.'</head>', $buffer, 1) ?? $buffer;
         } else {
