@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f6f5ef">
   <title>Contao Live Edit</title>
-  <link rel="stylesheet" href="/bundles/contaoliveedit/editor/editor.css">
+  <link rel="stylesheet" href="/bundles/contaoliveedit/editor/editor.css?v=3">
 </head>
 <body>
   <header class="editor-bar">
@@ -17,15 +17,20 @@
     <button class="edit-toggle" id="editToggle" type="button"><span class="edit-icon">✳</span><span id="editLabel">Activate editor</span></button>
     <a class="open-site" href="/" target="_blank" rel="noopener">Open site <span>↗</span></a>
   </header>
-  <section class="element-picker" id="elementPicker" aria-label="Add a content element" hidden>
-    <div class="picker-heading"><div class="picker-intro"><strong>Build the page</strong><span>Drag any Contao element into the preview</span></div><input id="elementSearch" type="search" placeholder="Search elements…" aria-label="Search content elements"></div>
-    <div class="picker-categories" id="pickerCategories"><p class="picker-loading">Loading Contao elements…</p></div>
-    <button class="picker-close" id="pickerClose" type="button" aria-label="Close element picker">×</button>
-  </section>
-  <main class="preview-shell" aria-label="Live website preview">
-    <iframe id="sitePreview" src="/" title="Live website preview"></iframe>
-    <div id="previewNotice" class="preview-notice" role="status" aria-live="polite" hidden></div>
-  </main>
-  <script src="/bundles/contaoliveedit/editor/editor.js" defer></script>
+  <div class="editor-workspace">
+    <aside class="element-picker" id="elementPicker" aria-label="Add a content element" hidden>
+      <div class="picker-heading">
+        <div class="picker-intro"><strong>Build the page</strong><span>Drag an element onto the preview</span></div>
+        <input id="elementSearch" type="search" placeholder="Search elements…" aria-label="Search content elements">
+      </div>
+      <div class="picker-categories" id="pickerCategories"><p class="picker-loading">Loading Contao elements…</p></div>
+      <button class="picker-close" id="pickerClose" type="button" aria-label="Close element picker">×</button>
+    </aside>
+    <main class="preview-shell" aria-label="Live website preview">
+      <iframe id="sitePreview" src="/" title="Live website preview"></iframe>
+      <div id="previewNotice" class="preview-notice" role="status" aria-live="polite" hidden></div>
+    </main>
+  </div>
+  <script src="/bundles/contaoliveedit/editor/editor.js?v=3" defer></script>
 </body>
 </html>
