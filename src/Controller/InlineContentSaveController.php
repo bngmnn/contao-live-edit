@@ -178,28 +178,51 @@ final class InlineContentSaveController
         $connection = System::getContainer()->get('doctrine.dbal.default_connection');
         $columns = array_change_key_case($connection->createSchemaManager()->listTableColumns('tl_content'), CASE_LOWER);
         $fields = [];
+        $quickEditHiddenFields = ['id', 'pid', 'ptable', 'sorting', 'tstamp', 'type', 'protected', 'groups', 'customTpl', 'invisible'];
         foreach ($this->editablePaletteFields((string) $element->type) as $name => $config) {
-            if (!isset($columns[strtolower((string) $name)]) || in_array($name, ['id', 'pid', 'ptable', 'sorting', 'tstamp', 'type'], true)) continue;
+            if (!isset($columns[strtolower((string) $name)]) || in_array($name, $quickEditHiddenFields, true)) continue;
+            $selectedFiles = [];
             $eval = $config['eval'] ?? [];
             $widget = $config['inputType'] ?? '';
-            if (!in_array($widget, ['text', 'textarea', 'select', 'checkbox', 'radio', 'fileTree', 'pageTree', 'inputUnit'], true) || !empty($eval['readonly']) || !empty($eval['doNotShow'])) continue;
+            if (!in_array($widget, ['text', 'textarea', 'select', 'checkbox', 'radio', 'fileTree', 'pageTree', 'inputUnit', 'imageSize'], true) || !empty($eval['readonly']) || !empty($eval['doNotShow'])) continue;
 
             $label = $GLOBALS['TL_LANG']['tl_content'][$name][0] ?? ucwords(preg_replace('/([a-z])([A-Z])/', '$1 $2', $name));
             $description = $GLOBALS['TL_LANG']['tl_content'][$name][1] ?? '';
             $storedValue = $element->{$name};
             $value = StringUtil::deserialize($storedValue);
+            if ('cssID' === $name) {
+                $cssId = StringUtil::deserialize($storedValue, true);
+                $value = ['id' => (string) ($cssId[0] ?? ''), 'class' => (string) ($cssId[1] ?? '')];
+            }
             if ('fileTree' === $widget) {
+                $selectedFiles = [];
                 if (!empty($eval['multiple'])) {
                     $storedItems = $storedValue ? StringUtil::deserialize($storedValue, true) : [];
                     $value = array_map(static fn ($uuid): string => StringUtil::binToUuid($uuid), $storedItems);
                 } else {
                     $value = $storedValue ? StringUtil::binToUuid($storedValue) : '';
                 }
+                foreach ((array) ($eval['multiple'] ? $value : ($value ? [$value] : [])) as $uuid) {
+                    $fileModel = FilesModel::findByUuid((string) $uuid);
+                    if (!$fileModel || 'file' !== $fileModel->type) continue;
+                    $file = new File($fileModel->path);
+                    $selectedFiles[] = [
+                        'uuid' => StringUtil::binToUuid($fileModel->uuid),
+                        'name' => $fileModel->name,
+                        'type' => $file->isImage ? 'image' : 'file',
+                        'url' => '/'.implode('/', array_map('rawurlencode', explode('/', $fileModel->path))),
+                    ];
+                }
             } elseif ('pageTree' === $widget && !empty($eval['multiple'])) {
                 $value = StringUtil::deserialize($storedValue, true);
             }
+            if ('imageSize' === $widget && is_array($value)) {
+                $value = array_is_list($value)
+                    ? ['width' => (string) ($value[0] ?? ''), 'height' => (string) ($value[1] ?? ''), 'mode' => (string) ($value[2] ?? '')]
+                    : ['width' => (string) ($value['width'] ?? ''), 'height' => (string) ($value['height'] ?? ''), 'mode' => (string) ($value['mode'] ?? '')];
+            }
             if ('checkbox' === $widget && !is_array($value)) $value = (bool) $value;
-            elseif (is_array($value) && empty($eval['multiple']) && !in_array($widget, ['checkbox', 'fileTree', 'pageTree', 'inputUnit', 'listWizard', 'rowWizard', 'tableWizard', 'imageSize'], true)) $value = (string) ($value['value'] ?? (array_is_list($value) ? ($value[0] ?? '') : ''));
+            elseif (is_array($value) && empty($eval['multiple']) && !in_array($widget, ['checkbox', 'fileTree', 'pageTree', 'inputUnit', 'listWizard', 'rowWizard', 'tableWizard', 'imageSize'], true) && 'cssID' !== $name) $value = (string) ($value['value'] ?? (array_is_list($value) ? ($value[0] ?? '') : ''));
             elseif (null === $value) $value = '';
 
             $options = [];
@@ -216,13 +239,23 @@ final class InlineContentSaveController
                 }
             }
 
-            $fields[] = ['name' => (string) $name, 'label' => is_array($label) ? (string) ($label[0] ?? $name) : (string) $label,
+            $displayLabel = match ($name) {
+                'start' => 'Show from',
+                'stop' => 'Show until',
+                'size' => 'Image size',
+                default => is_array($label) ? (string) ($label[0] ?? $name) : (string) $label,
+            };
+            if (in_array($name, ['start', 'stop'], true)) $widget = 'datetime';
+            $fields[] = ['name' => (string) $name, 'label' => $displayLabel,
                 'description' => is_array($description) ? (string) ($description[0] ?? '') : (string) $description,
                 'widget' => $widget, 'value' => $value, 'options' => $options, 'multiple' => !empty($eval['multiple']),
-                'required' => !empty($eval['mandatory']), 'maxlength' => (int) ($eval['maxlength'] ?? 0)];
+                'required' => !empty($eval['mandatory']), 'maxlength' => (int) ($eval['maxlength'] ?? 0),
+                'richText' => !empty($eval['rte']),
+                'advanced' => in_array($name, ['cssID', 'customTpl', 'size', 'imageSize'], true),
+                'selectedFiles' => $selectedFiles ?? []];
         }
 
-        return new JsonResponse(['id' => (int) $element->id, 'type' => (string) $element->type, 'fields' => $fields]);
+        return new JsonResponse(['id' => (int) $element->id, 'type' => (string) $element->type, 'invisible' => (bool) $element->invisible, 'fields' => $fields]);
     }
 
     public function saveElementFields(Request $request): JsonResponse
@@ -245,12 +278,18 @@ final class InlineContentSaveController
         foreach ($this->editablePaletteFields((string) $element->type) as $name => $config) {
             if (isset($columns[strtolower((string) $name)]) && !empty($config['inputType']) && empty($config['eval']['readonly']) && empty($config['eval']['doNotShow'])) $allowed[] = $name;
         }
+        if (isset($columns['invisible']) && !empty($GLOBALS['TL_DCA']['tl_content']['fields']['invisible']['inputType'])) $allowed[] = 'invisible';
 
         foreach ($submitted as $name => $value) {
             if (!is_string($name) || !in_array($name, $allowed, true) || in_array($name, ['id', 'pid', 'ptable', 'sorting', 'tstamp', 'type'], true)) return new JsonResponse(['error' => 'One of the submitted fields is not editable.'], 422);
             $config = $GLOBALS['TL_DCA']['tl_content']['fields'][$name] ?? [];
             $widget = $config['inputType'] ?? '';
-            if (in_array($widget, ['listWizard', 'rowWizard', 'tableWizard', 'imageSize'], true) && is_array($value)) {
+            if ('cssID' === $name && is_array($value)) {
+                $cssId = (string) ($value['id'] ?? $value[0] ?? '');
+                $cssClass = (string) ($value['class'] ?? $value[1] ?? '');
+                if (mb_strlen($cssId) > 255 || mb_strlen($cssClass) > 255) return new JsonResponse(['error' => 'The CSS ID or class is too long.'], 422);
+                $value = serialize([$cssId, $cssClass]);
+            } elseif (in_array($widget, ['listWizard', 'rowWizard', 'tableWizard', 'imageSize'], true) && is_array($value)) {
                 if (count($value) > 100 || strlen(serialize($value)) > 20000) return new JsonResponse(['error' => 'The structured field is too large.'], 422);
                 $value = serialize($value);
             } elseif ('inputUnit' === $widget && is_array($value) && is_scalar($value['value'] ?? null)) {

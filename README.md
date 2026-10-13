@@ -2,7 +2,9 @@
 
 A lightweight visual editing bundle for Contao. It adds a live editor at `/contao-live-edit` and an in-page toolbar for logged-in Contao administrators. Text and headlines can be edited in place; images can be replaced by upload or selected from the Contao file library; links can be edited from a contextual form; and content elements can be rearranged or added by drag and drop.
 
-The element picker reads Contao's registered `TL_CTE` catalog at runtime. This includes built-in content elements and elements registered by installed extensions. New records receive the defaults available in `tl_content`'s DCA. In the frontend, each rendered element gets a move handle and a settings control; settings are generated from that element type's active DCA palette, including palette fields added by extensions. Standard selectors, checkboxes, file and page pickers, structured rows, and custom scalar fields use the same editor surface. Headlines, text, links, images, and video embeds have focused editing flows.
+The element picker reads Contao's registered `TL_CTE` catalog at runtime. This includes built-in content elements and elements registered by installed extensions. New records receive the defaults available in `tl_content`'s DCA. In the frontend, each rendered element gets a move handle and a settings control; settings are generated from that element type's active DCA palette, including palette fields added by extensions. Quick edit keeps common fields up front, uses date-time pickers for scheduling, an eye control for visibility, and image previews for file selections. Less common fields are grouped under Advanced settings; element protection and type selection stay out of the quick-edit flow. Standard selectors, checkboxes, file and page pickers, structured rows, and custom scalar fields use the same editor surface. Headlines, text, links, images, and video embeds have focused editing flows.
+
+Text fields configured with Contao's `rte` option use Contao's bundled HugeRTE editor in the quick-edit panel. The `cssID` DCA value is presented as separate CSS ID and CSS class controls and saved back in Contao's native format.
 
 ## Install from GitHub
 
