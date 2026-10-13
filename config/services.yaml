@@ -1,0 +1,11 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: true
+
+    ContaoLiveEdit\Controller\InlineContentSaveController:
+        tags: ['controller.service_arguments']
+
+    ContaoLiveEdit\Controller\EditorController:
+        tags: ['controller.service_arguments']

@@ -1,0 +1,39 @@
+contao_live_edit_editor:
+    path: /contao-live-edit
+    controller: ContaoLiveEdit\Controller\EditorController
+    methods: [GET]
+
+contao_live_edit_save:
+    path: /contao-live-edit/save-inline
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController
+    methods: [POST]
+
+contao_live_edit_save_link:
+    path: /contao-live-edit/save-link
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::saveLink
+    methods: [POST]
+
+contao_live_edit_save_image:
+    path: /contao-live-edit/save-image
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::saveImage
+    methods: [POST]
+
+contao_live_edit_image_library:
+    path: /contao-live-edit/image-library
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::browseImages
+    methods: [GET]
+
+contao_live_edit_reorder:
+    path: /contao-live-edit/reorder-content
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::reorderContent
+    methods: [POST]
+
+contao_live_edit_insert:
+    path: /contao-live-edit/insert-content
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::insertContent
+    methods: [POST]
+
+contao_live_edit_content_elements:
+    path: /contao-live-edit/content-elements
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::listContentElements
+    methods: [GET]

@@ -1,0 +1,81 @@
+<?php
+
+declare(strict_types=1);
+
+namespace ContaoLiveEdit\Hook;
+
+use Contao\BackendUser;
+use Contao\System;
+
+final class InlineEditorMarkupHook
+{
+    public static function addRecordAttributes(object $row, string $content, object $element): string
+    {
+        if (!System::getContainer()->get('contao.security.token_checker')->hasBackendUser()) {
+            return $content;
+        }
+
+        $user = BackendUser::getInstance();
+
+        if (!$user || !$user->isAdmin || empty($row->id) || !self::isRegisteredElement((string) ($row->type ?? ''))) {
+            return $content;
+        }
+
+        $recordId = htmlspecialchars((string) $row->id, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $recordType = htmlspecialchars((string) $row->type, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $inserted = false;
+
+        return preg_replace_callback(
+            '/<([a-z][a-z0-9:-]*)(\s[^<>]*?)?>/i',
+            static function (array $match) use (&$inserted, $recordId, $recordType): string {
+                if ($inserted || in_array(strtolower($match[1]), ['script', 'style'], true)) {
+                    return $match[0];
+                }
+
+                $inserted = true;
+
+                if (str_contains($match[0], 'data-contao-live-edit-record=')) {
+                    return $match[0];
+                }
+
+                $attributes = $match[2] ?? '';
+
+                return '<'.$match[1].$attributes.' data-contao-live-edit-record="'.$recordId.'" data-contao-live-edit-type="'.$recordType.'">';
+            },
+            $content,
+        ) ?? $content;
+    }
+
+    private static function isRegisteredElement(string $type): bool
+    {
+        foreach ($GLOBALS['TL_CTE'] ?? [] as $elements) {
+            if (is_array($elements) && array_key_exists($type, $elements)) return true;
+        }
+
+        return false;
+    }
+
+    public static function addFrontendTools(string $buffer, string $templateName = ''): string
+    {
+        $container = System::getContainer();
+        if (!$container->get('contao.security.token_checker')->hasBackendUser() || !BackendUser::getInstance()?->isAdmin) {
+            return $buffer;
+        }
+
+        $token = $container->get('security.csrf.token_manager')->getToken('contao_live_edit')->getValue();
+        $head = '<meta name="contao-live-edit-token" content="'.htmlspecialchars($token, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"><link rel="stylesheet" href="/bundles/contaoliveedit/css/inline-edit.css">';
+        if (str_contains($buffer, '</head>')) {
+            $buffer = preg_replace('~</head>~i', $head.'</head>', $buffer, 1) ?? $buffer;
+        } else {
+            $buffer = $head.$buffer;
+        }
+
+        $script = '<script src="/bundles/contaoliveedit/js/inline-edit.js" defer></script>';
+        if (str_contains($buffer, '</body>')) {
+            return preg_replace('~</body>~i', $script.'</body>', $buffer, 1) ?? $buffer;
+        }
+
+        return $buffer.$script;
+    }
+
+}
