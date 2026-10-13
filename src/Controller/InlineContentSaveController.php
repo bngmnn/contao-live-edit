@@ -215,7 +215,7 @@ final class InlineContentSaveController
             $selectedFiles = [];
             $eval = $config['eval'] ?? [];
             $widget = $config['inputType'] ?? '';
-            if (!in_array($widget, ['text', 'textarea', 'select', 'checkbox', 'radio', 'fileTree', 'pageTree', 'inputUnit', 'imageSize', 'listWizard', 'rowWizard', 'tableWizard'], true) || !empty($eval['readonly']) || !empty($eval['doNotShow'])) continue;
+            if (!is_string($widget) || '' === $widget || !empty($eval['readonly']) || !empty($eval['doNotShow'])) continue;
 
             $label = $GLOBALS['TL_LANG']['tl_content'][$name][0] ?? ucwords(preg_replace('/([a-z])([A-Z])/', '$1 $2', $name));
             $description = $GLOBALS['TL_LANG']['tl_content'][$name][1] ?? '';
@@ -252,7 +252,7 @@ final class InlineContentSaveController
                 $value = ['width' => (string) ($parts[0] ?? ''), 'height' => (string) ($parts[1] ?? ''), 'mode' => (string) ($parts[2] ?? '')];
             }
             if ('checkbox' === $widget && !is_array($value)) $value = (bool) $value;
-            elseif (is_array($value) && empty($eval['multiple']) && !in_array($widget, ['checkbox', 'fileTree', 'pageTree', 'inputUnit', 'listWizard', 'rowWizard', 'tableWizard', 'imageSize'], true) && 'cssID' !== $name) $value = (string) ($value['value'] ?? (array_is_list($value) ? ($value[0] ?? '') : ''));
+            elseif (is_array($value) && empty($eval['multiple']) && in_array($widget, ['text', 'textarea', 'select', 'radio'], true) && 'cssID' !== $name) $value = (string) ($value['value'] ?? (array_is_list($value) ? ($value[0] ?? '') : ''));
             elseif (null === $value) $value = '';
 
             $options = [];
@@ -402,7 +402,9 @@ final class InlineContentSaveController
                 if ('youtube' === $name && !preg_match('/^[\w-]{11}$/', $value)) return new JsonResponse(['error' => 'Enter a valid YouTube video URL.'], 422);
                 if ('vimeo' === $name && !preg_match('/^\d{1,12}$/', $value)) return new JsonResponse(['error' => 'Enter a valid Vimeo video URL.'], 422);
                 $options = $config['eval']['options'] ?? $config['options'] ?? $config['reference'] ?? [];
-                if (in_array($widget, ['select', 'radio'], true) && is_array($options) && $options) {
+                $nativeChoiceWidgets = ['select', 'radio', 'radioTable', 'selectTree'];
+                $plainWidgets = ['text', 'textarea', 'checkbox', 'fileTree', 'pageTree', 'inputUnit', 'imageSize', 'listWizard', 'rowWizard', 'tableWizard'];
+                if ((in_array($widget, $nativeChoiceWidgets, true) || (is_array($options) && $options && !in_array($widget, $plainWidgets, true))) && is_array($options) && $options) {
                     $validOptions = array_is_list($options) ? array_map('strval', $options) : array_map('strval', array_keys($options));
                     if (!in_array($value, $validOptions, true)) return new JsonResponse(['error' => 'Choose a valid option.'], 422);
                 }

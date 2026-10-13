@@ -570,10 +570,10 @@
           const option = document.createElement('option'); option.value = optionData.value; option.textContent = optionData.label; (optionData.group ? optionGroup : modeSelect).append(option);
         }
         modeSelect.value = String(field.value.mode ?? ''); mode.append(modeLabel, modeSelect); input.append(mode);
-      } else if (['select', 'radio', 'pageTree'].includes(field.widget) && field.options?.length) {
+      } else if ((['select', 'radio', 'pageTree', 'radioTable', 'selectTree'].includes(field.widget) || (field.options?.length && !['checkbox', 'fileTree', 'inputUnit', 'imageSize', 'text', 'textarea', 'listWizard', 'rowWizard', 'tableWizard'].includes(field.widget))) && field.options?.length) {
         input = document.createElement('select');
-        if (field.widget === 'pageTree') input.multiple = Boolean(field.multiple);
-        if (field.widget === 'select') {
+        input.multiple = Boolean(field.multiple);
+        if (field.widget === 'select' && !input.multiple) {
           const blank = document.createElement('option'); blank.value = ''; blank.textContent = 'Choose…'; input.append(blank);
         }
         for (const option of field.options) {
@@ -619,7 +619,7 @@
       } else if (field.widget === 'textarea' || ['rowWizard', 'tableWizard'].includes(field.widget) || Array.isArray(field.value)) {
         input = document.createElement('textarea'); input.rows = ['rowWizard', 'tableWizard'].includes(field.widget) ? 5 : 4;
         if (['rowWizard', 'tableWizard'].includes(field.widget)) input.value = (Array.isArray(field.value) ? field.value : []).map((row) => (Array.isArray(row) ? row : Object.values(row || {})).map(String).join('\t')).join('\n');
-        else if (Array.isArray(field.value)) input.value = JSON.stringify(field.value ?? [], null, 2);
+        else if (Array.isArray(field.value)) { input.value = JSON.stringify(field.value ?? [], null, 2); input.dataset.jsonStructuredValue = 'true'; }
         else input.value = String(field.value ?? '');
         if (field.richText) { input.classList.add('contao-live-edit-native-rte'); input.rows = 9; }
         if (['code', 'html', 'unfilteredHtml'].includes(field.name)) { input.classList.add('contao-live-edit-source-editor'); input.rows = field.name === 'code' ? 18 : 14; input.spellcheck = false; wrapper.classList.add('is-source-field'); }
@@ -857,7 +857,7 @@
         }
         else if (input.dataset.widget === 'listWizard') values[input.name] = input.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
         else if (['rowWizard', 'tableWizard'].includes(input.dataset.widget)) values[input.name] = input.value.split(/\r?\n/).filter(Boolean).map((line) => line.split('\t'));
-        else if (input.dataset.widget === 'imageSize' || (input.tagName === 'TEXTAREA' && input.value.trim().startsWith('['))) {
+        else if (input.dataset.jsonStructuredValue || input.dataset.widget === 'imageSize' || (input.tagName === 'TEXTAREA' && input.value.trim().startsWith('['))) {
           try { values[input.name] = JSON.parse(input.value); } catch { status.textContent = 'Enter valid JSON for this structured field.'; status.classList.add('is-error'); submit.disabled = false; return; }
         }
         else if (input.classList.contains('contao-live-edit-native-rte') && window.hugerte?.get(input.id)) values[input.name] = window.hugerte.get(input.id).getContent();

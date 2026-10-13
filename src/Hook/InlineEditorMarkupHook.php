@@ -81,7 +81,7 @@ final class InlineEditorMarkupHook
             $buffer = $head.$buffer;
         }
 
-        $script = '<script src="/assets/hugerte/js/hugerte.min.js" defer></script><script src="/bundles/contaoliveedit/js/inline-edit.js?v=6" defer></script>';
+        $script = '<script src="/assets/hugerte/js/hugerte.min.js" defer></script><script src="/bundles/contaoliveedit/js/inline-edit.js?v=7" defer></script>';
         if (str_contains($buffer, '</body>')) {
             return preg_replace('~</body>~i', $script.'</body>', $buffer, 1) ?? $buffer;
         }
