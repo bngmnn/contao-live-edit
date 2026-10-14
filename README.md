@@ -6,13 +6,15 @@ The element picker reads Contao's registered `TL_CTE` catalog at runtime. This i
 
 Text fields configured with Contao's `rte` option use Contao's bundled HugeRTE editor in the quick-edit panel. The `cssID` DCA value is presented as separate CSS ID and CSS class controls and saved back in Contao's native format.
 
+The in-page toolbar also includes a template editor for custom templates in the project `templates/` directory. It lists Twig (`.html.twig`) and legacy Contao (`.html5`/`.xhtml`) templates, opens the selected source in a large code editor, and saves changes directly. Saving invalidates Contao's frontend Twig template cache so the updated markup is picked up on the next page load.
+
 ## Install from GitHub
 
-Add this repository as a Composer VCS source, then require the development branch:
+Until the package is available through Packagist, add this repository as a Composer VCS source and require the latest `0.1.x` release:
 
 ```sh
 composer config repositories.contao-live-edit vcs https://github.com/bngmnn/contao-live-edit
-composer require bngmnn/contao-live-edit:dev-main
+composer require bngmnn/contao-live-edit:^0.1
 vendor/bin/contao-setup
 vendor/bin/contao-console assets:install public --symlink
 ```
@@ -28,9 +30,10 @@ Then sign in as a Contao administrator and visit `/contao-live-edit`. The fronte
 ## Notes
 
 - Edit and upload endpoints require an authenticated Contao administrator and a CSRF token.
+- Template source editing is limited to existing template files under the project `templates/` directory; paths cannot escape that directory.
 - Dragging a new element creates its Contao record with DCA defaults. Double-click text to edit it directly; use the element settings control for the full palette, advanced options, and removal.
 - Extension widgets that Contao exposes through a DCA palette are included in the generated settings editor. Highly specialized widgets use a structured fallback editor, and extension-specific callbacks that only run in the back end may still need their native Contao form.
-- The bundle has not yet been submitted to the Contao Manager catalog. Composer VCS installation is supported.
+- Composer VCS installation is supported. Once the package is listed on Packagist, the extra VCS repository entry is no longer needed.
 
 ## License
 

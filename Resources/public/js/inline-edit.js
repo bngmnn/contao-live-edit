@@ -17,7 +17,7 @@
   bar.className = 'contao-live-edit-inline-bar is-ready';
   bar.setAttribute('role', 'region');
   bar.setAttribute('aria-label', 'Inline text editor');
-  bar.innerHTML = '<span class="contao-live-edit-inline-hint">Double-click any text to edit</span><span class="contao-live-edit-inline-status" aria-live="polite"></span><button type="button" data-action="toggle">Edit text</button><button type="button" data-action="cancel">Cancel</button><button type="button" data-action="save">Save</button>';
+  bar.innerHTML = '<span class="contao-live-edit-inline-hint">Double-click any text to edit</span><span class="contao-live-edit-inline-status" aria-live="polite"></span><button type="button" data-action="toggle">Edit text</button><button type="button" data-action="templates">Templates</button><button type="button" data-action="cancel">Cancel</button><button type="button" data-action="save">Save</button>';
   document.body.append(bar);
 
   const status = bar.querySelector('.contao-live-edit-inline-status');
@@ -78,6 +78,108 @@
     if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     imagePreviewUrl = null;
   };
+
+  let templateModal;
+  let templateAce;
+  let templateAcePromise;
+  let templateAceAssetsLoaded = false;
+  let templateSelectedPath = '';
+  let templateOriginalSource = '';
+  const loadTemplateAce = async () => {
+    if (templateAceAssetsLoaded) return;
+    if (!window.ace) {
+      templateAcePromise ||= new Promise((resolve, reject) => {
+        const script = document.createElement('script'); script.src = '/assets/ace/js/ace.js'; script.onload = resolve; script.onerror = () => reject(new Error('Code highlighting is unavailable.'));
+        document.head.append(script);
+      });
+      await templateAcePromise;
+    }
+    const loadMode = (file) => new Promise((resolve, reject) => {
+      const script = document.createElement('script'); script.src = `/assets/ace/js/${file}`; script.onload = resolve; script.onerror = () => reject(new Error('Code highlighting is unavailable.'));
+      document.head.append(script);
+    });
+    await Promise.all([loadMode('mode-html.js'), loadMode('mode-twig.js'), loadMode('theme-chrome.js'), loadMode('theme-dracula.js')]);
+    templateAceAssetsLoaded = true;
+  };
+  const openTemplateEditor = async () => {
+    if (!templateModal) {
+      templateModal = document.createElement('div');
+      templateModal.className = 'contao-live-edit-template-modal';
+      templateModal.innerHTML = '<section class="contao-live-edit-template-card" role="dialog" aria-modal="true" aria-labelledby="contao-live-edit-template-title"><header><div><span class="contao-live-edit-modal-kicker">PROJECT TEMPLATES</span><h2 id="contao-live-edit-template-title">Edit a Contao template</h2><p>Changes are written to the selected file in the project templates folder.</p></div><button type="button" data-template-close aria-label="Close">×</button></header><div class="contao-live-edit-template-layout"><aside><label class="contao-live-edit-template-search">Find a template<input type="search" placeholder="Search templates"></label><nav data-template-list aria-label="Project templates"><p class="contao-live-edit-library-message">Loading templates…</p></nav></aside><main><div class="contao-live-edit-template-file" data-template-path>Select a template to begin</div><div class="contao-live-edit-template-ace" data-template-ace hidden></div><textarea data-template-source spellcheck="false" aria-label="Template source" disabled></textarea></main></div><footer><span data-template-status aria-live="polite">Choose a template from the list.</span><button type="button" data-template-close>Close</button><button type="button" data-template-save disabled>Save template</button></footer></section>';
+      document.body.append(templateModal);
+      templateModal.querySelectorAll('[data-template-close]').forEach((button) => button.addEventListener('click', () => templateModal.remove()));
+      templateModal.addEventListener('click', (event) => { if (event.target === templateModal) templateModal.remove(); });
+    }
+    if (!templateModal.isConnected) document.body.append(templateModal);
+    const list = templateModal.querySelector('[data-template-list]');
+    const search = templateModal.querySelector('.contao-live-edit-template-search input');
+    const editor = templateModal.querySelector('[data-template-source]');
+    const aceSurface = templateModal.querySelector('[data-template-ace]');
+    const status = templateModal.querySelector('[data-template-status]');
+    const pathLabel = templateModal.querySelector('[data-template-path]');
+    const save = templateModal.querySelector('[data-template-save]');
+    const currentSource = () => templateAce ? templateAce.getValue() : editor.value;
+    const setSource = (value, path = '') => {
+      editor.value = value;
+      if (templateAce) {
+        templateAce.setValue(value, -1);
+        templateAce.session.setMode(path.endsWith('.html.twig') ? 'ace/mode/twig' : 'ace/mode/html');
+      }
+    };
+    try {
+      await loadTemplateAce();
+      aceSurface.hidden = false; editor.hidden = true;
+      if (!templateAce) {
+        templateAce = window.ace.edit(aceSurface);
+        templateAce.setTheme(document.documentElement.dataset.contaoLiveEditTheme === 'dark' ? 'ace/theme/dracula' : 'ace/theme/chrome');
+        templateAce.setOptions({ fontSize: '13px', showPrintMargin: false, tabSize: 2, useSoftTabs: true, displayIndentGuides: true, wrap: false });
+        templateAce.session.setUseWorker(false);
+        templateAce.session.on('change', () => { status.classList.remove('is-error'); status.textContent = currentSource() === templateOriginalSource ? 'No unsaved changes' : 'Unsaved changes'; });
+      }
+    } catch (_) { aceSurface.hidden = true; editor.hidden = false; }
+    const loadTemplate = async (path, button) => {
+      if (path !== templateSelectedPath && currentSource() !== templateOriginalSource && !window.confirm('Discard unsaved template changes?')) return;
+      status.textContent = 'Loading template…';
+      try {
+        const response = await fetch(`/contao-live-edit/template-source?path=${encodeURIComponent(path)}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not open template.');
+        templateSelectedPath = path; templateOriginalSource = result.content; setSource(templateOriginalSource, path); editor.disabled = false; save.disabled = false;
+        pathLabel.textContent = path; status.textContent = 'Saved source';
+        list.querySelectorAll('button').forEach((item) => item.classList.toggle('is-selected', item === button));
+        templateAce ? templateAce.focus() : editor.focus();
+      } catch (error) { status.textContent = error.message; status.classList.add('is-error'); }
+    };
+    try {
+      const response = await fetch('/contao-live-edit/templates', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not load templates.');
+      list.replaceChildren();
+      if (!result.templates.length) { const empty = document.createElement('p'); empty.className = 'contao-live-edit-library-message'; empty.textContent = 'No custom templates found in the project templates folder.'; list.append(empty); }
+      for (const template of result.templates) {
+        const button = document.createElement('button'); button.type = 'button'; button.textContent = template.path; button.dataset.templatePath = template.path;
+        button.addEventListener('click', () => loadTemplate(template.path, button)); list.append(button);
+      }
+      search.oninput = () => list.querySelectorAll('button').forEach((button) => { button.hidden = !button.textContent.toLowerCase().includes(search.value.trim().toLowerCase()); });
+      if (templateSelectedPath) {
+        const previous = [...list.querySelectorAll('button')].find((button) => button.dataset.templatePath === templateSelectedPath);
+        if (previous) await loadTemplate(templateSelectedPath, previous);
+      }
+      const query = new URLSearchParams(window.location.search).get('template');
+      const preferred = result.templates.find((item) => item.path.replace(/\.(html\.twig|html5|xhtml)$/, '') === query || item.path === query);
+      if (preferred) await loadTemplate(preferred.path, [...list.querySelectorAll('button')].find((button) => button.dataset.templatePath === preferred.path));
+    } catch (error) { list.textContent = error.message || 'Could not load templates.'; }
+    editor.oninput = () => { status.classList.remove('is-error'); status.textContent = currentSource() === templateOriginalSource ? 'No unsaved changes' : 'Unsaved changes'; };
+    save.onclick = async () => {
+      if (!templateSelectedPath) return;
+      save.disabled = true; status.classList.remove('is-error'); status.textContent = 'Saving…';
+      try { await request('/contao-live-edit/save-template', { path: templateSelectedPath, content: currentSource() }); templateOriginalSource = currentSource(); status.textContent = 'Template saved'; }
+      catch (error) { status.classList.add('is-error'); status.textContent = error.message || 'Could not save template.'; }
+      finally { save.disabled = false; }
+    };
+  };
+
+  bar.querySelector('[data-action="templates"]').addEventListener('click', openTemplateEditor);
 
   const placePopover = (node) => {
     const rect = node.getBoundingClientRect();

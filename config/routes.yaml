@@ -57,3 +57,18 @@ contao_live_edit_delete_element:
     path: /contao-live-edit/delete-element
     controller: ContaoLiveEdit\Controller\InlineContentSaveController::deleteElement
     methods: [POST]
+
+contao_live_edit_templates:
+    path: /contao-live-edit/templates
+    controller: ContaoLiveEdit\Controller\TemplateEditController::list
+    methods: [GET]
+
+contao_live_edit_template_read:
+    path: /contao-live-edit/template-source
+    controller: ContaoLiveEdit\Controller\TemplateEditController::read
+    methods: [GET]
+
+contao_live_edit_template_save:
+    path: /contao-live-edit/save-template
+    controller: ContaoLiveEdit\Controller\TemplateEditController::save
+    methods: [POST]
