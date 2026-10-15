@@ -1,5 +1,7 @@
 (() => {
   const fields = '[data-inline-record][data-inline-field]';
+  const basePath = (document.querySelector('meta[name="contao-live-edit-base-path"]')?.content || '').replace(/\/$/, '');
+  const appUrl = (path) => `${basePath}${path.startsWith('/') ? path : `/${path}`}`;
   const token = document.querySelector('meta[name="contao-live-edit-inline-token"]')?.content;
   if (!token) return;
   const activationKey = 'contao-live-edit-editor-active';
@@ -8,16 +10,47 @@
   let originalMarkup = '';
   let textMode = false;
   let popover = null;
+  let popoverDirty = false;
   let pendingClick = null;
   let replayingClick = false;
   let imagePreviewUrl = null;
   textMode = sessionStorage.getItem(activationKey) === 'true';
 
+  const markNewsFields = () => {
+    for (const article of document.querySelectorAll('.contao-live-edit-news')) {
+      const idClass = [...article.classList].find((name) => /^contao-live-edit-news-\d+$/.test(name));
+      const id = idClass?.slice('contao-live-edit-news-'.length);
+      if (!id) continue;
+      const mark = (element, name, wrapLink = false) => {
+        if (!element) return;
+        let field = element;
+        if (wrapLink && element.matches('a')) {
+          field = element.querySelector(':scope > .contao-live-edit-news-inline-field');
+          if (!field) {
+            field = document.createElement('span');
+            field.className = 'contao-live-edit-news-inline-field';
+            while (element.firstChild) field.append(element.firstChild);
+            element.append(field);
+          }
+        }
+        field.dataset.inlineRecord = id;
+        field.dataset.inlineRecordType = 'news';
+        field.dataset.inlineField = name;
+      };
+      const headline = article.querySelector(':scope > h1') || article.querySelector(':scope > h2');
+      if (headline) mark(headline.matches('a') ? headline : (headline.querySelector(':scope > a') || headline), 'headline', true);
+      if (article.querySelector(':scope > h1')) mark(article.querySelector(':scope > h2'), 'subheadline');
+      mark(article.querySelector(':scope > .content-text'), 'teaser');
+    }
+  };
+
+  markNewsFields();
+
   const bar = document.createElement('div');
   bar.className = 'contao-live-edit-inline-bar is-ready';
   bar.setAttribute('role', 'region');
   bar.setAttribute('aria-label', 'Inline text editor');
-  bar.innerHTML = '<span class="contao-live-edit-inline-hint">Double-click any text to edit</span><span class="contao-live-edit-inline-status" aria-live="polite"></span><button type="button" data-action="toggle">Edit text</button><button type="button" data-action="templates">Templates</button><button type="button" data-action="cancel">Cancel</button><button type="button" data-action="save">Save</button>';
+  bar.innerHTML = '<span class="contao-live-edit-inline-hint">Double-click text, images, or links · Enter edits focused text · Hover or focus for settings and move</span><span class="contao-live-edit-inline-status" aria-live="polite"></span><button type="button" data-action="toggle">Edit text</button><button type="button" data-action="templates">Templates</button><button type="button" data-action="cancel">Cancel</button><button type="button" data-action="save">Save</button>';
   document.body.append(bar);
 
   const status = bar.querySelector('.contao-live-edit-inline-status');
@@ -31,8 +64,9 @@
     status.classList.toggle('is-error', error);
   };
 
-  const finish = (restore) => {
-    if (!activeField) return;
+  const finish = (restore, discardConfirmed = false) => {
+    if (!activeField) return true;
+    if (restore && !discardConfirmed && activeField.innerHTML !== originalMarkup && !window.confirm('Discard your unsaved text changes?')) return false;
     if (restore) activeField.innerHTML = originalMarkup;
     activeField.contentEditable = 'false';
     activeField.classList.remove('is-inline-editing');
@@ -40,23 +74,25 @@
     bar.classList.remove('is-editing');
     saveButton.disabled = false;
     setMessage('');
+    return true;
   };
 
   const syncActivation = () => {
+    if (!isActive() && popover && !closePopover()) textMode = true;
+    if (!isActive() && activeField && !finish(true)) textMode = true;
     const active = isActive();
-    sessionStorage.setItem(activationKey, String(textMode));
+    sessionStorage.setItem(activationKey, String(active));
     bar.classList.toggle('is-active', active);
     document.body.classList.toggle('contao-live-edit-text-editing', active);
-    toggleButton.textContent = textMode ? 'Text editing on' : 'Edit text';
-    toggleButton.setAttribute('aria-pressed', String(textMode));
-    if (!active && activeField) finish(true);
+    toggleButton.textContent = active ? 'Text editing on' : 'Edit text';
+    toggleButton.setAttribute('aria-pressed', String(active));
+    updateKeyboardTargets(active);
   };
   new MutationObserver(syncActivation).observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
-  syncActivation();
 
   const begin = (field) => {
     if (!isActive()) return;
-    if (activeField && activeField !== field) finish(true);
+    if (activeField && activeField !== field && !finish(true)) return;
     activeField = field;
     originalMarkup = field.innerHTML;
     field.contentEditable = 'true';
@@ -71,12 +107,36 @@
     selection.addRange(range);
   };
 
-  const closePopover = () => {
+  const closePopover = (discardConfirmed = false) => {
+    if (!popover) return true;
+    if (popover.dataset.saving === 'true') return false;
+    if (popoverDirty && !discardConfirmed && !window.confirm('Discard your unsaved changes?')) return false;
     popover?.querySelectorAll('textarea.contao-live-edit-native-rte').forEach((textarea) => window.hugerte?.get(textarea.id)?.remove());
     popover?.remove();
     popover = null;
+    popoverDirty = false;
     if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     imagePreviewUrl = null;
+    return true;
+  };
+  const trackPopoverChanges = () => {
+    popoverDirty = false;
+    const currentPopover = popover;
+    currentPopover?.addEventListener('input', () => { popoverDirty = true; });
+    currentPopover?.addEventListener('change', () => { popoverDirty = true; });
+  };
+  const setPopoverSaving = (saving) => {
+    if (!popover) return;
+    popover.dataset.saving = String(saving);
+    for (const control of popover.querySelectorAll('button,input,textarea,select')) {
+      if (saving) {
+        control.dataset.preSavingDisabled = String(control.disabled);
+        control.disabled = true;
+      } else {
+        control.disabled = control.dataset.preSavingDisabled === 'true';
+        delete control.dataset.preSavingDisabled;
+      }
+    }
   };
 
   let templateModal;
@@ -85,30 +145,38 @@
   let templateAceAssetsLoaded = false;
   let templateSelectedPath = '';
   let templateOriginalSource = '';
+  const templateHasUnsavedChanges = () => Boolean(templateSelectedPath)
+    && (templateAce ? templateAce.getValue() : templateModal?.querySelector('[data-template-source]')?.value || '') !== templateOriginalSource;
+  const closeTemplateModal = () => {
+    if (templateHasUnsavedChanges() && !window.confirm('Discard unsaved template changes?')) return;
+    templateModal?.remove();
+  };
   const loadTemplateAce = async () => {
     if (templateAceAssetsLoaded) return;
     if (!window.ace) {
       templateAcePromise ||= new Promise((resolve, reject) => {
-        const script = document.createElement('script'); script.src = '/assets/ace/js/ace.js'; script.onload = resolve; script.onerror = () => reject(new Error('Code highlighting is unavailable.'));
+        const script = document.createElement('script'); script.src = appUrl('/assets/ace/js/ace.js'); script.onload = resolve; script.onerror = () => reject(new Error('Code highlighting is unavailable.'));
         document.head.append(script);
       });
       await templateAcePromise;
     }
     const loadMode = (file) => new Promise((resolve, reject) => {
-      const script = document.createElement('script'); script.src = `/assets/ace/js/${file}`; script.onload = resolve; script.onerror = () => reject(new Error('Code highlighting is unavailable.'));
+      const script = document.createElement('script'); script.src = appUrl(`/assets/ace/js/${file}`); script.onload = resolve; script.onerror = () => reject(new Error('Code highlighting is unavailable.'));
       document.head.append(script);
     });
     await Promise.all([loadMode('mode-html.js'), loadMode('mode-twig.js'), loadMode('theme-chrome.js'), loadMode('theme-dracula.js')]);
     templateAceAssetsLoaded = true;
   };
   const openTemplateEditor = async () => {
+    if (activeField && !finish(true)) return;
+    if (!closePopover()) return;
     if (!templateModal) {
       templateModal = document.createElement('div');
       templateModal.className = 'contao-live-edit-template-modal';
-      templateModal.innerHTML = '<section class="contao-live-edit-template-card" role="dialog" aria-modal="true" aria-labelledby="contao-live-edit-template-title"><header><div><span class="contao-live-edit-modal-kicker">PROJECT TEMPLATES</span><h2 id="contao-live-edit-template-title">Edit a Contao template</h2><p>Changes are written to the selected file in the project templates folder.</p></div><button type="button" data-template-close aria-label="Close">×</button></header><div class="contao-live-edit-template-layout"><aside><label class="contao-live-edit-template-search">Find a template<input type="search" placeholder="Search templates"></label><nav data-template-list aria-label="Project templates"><p class="contao-live-edit-library-message">Loading templates…</p></nav></aside><main><div class="contao-live-edit-template-file" data-template-path>Select a template to begin</div><div class="contao-live-edit-template-ace" data-template-ace hidden></div><textarea data-template-source spellcheck="false" aria-label="Template source" disabled></textarea></main></div><footer><span data-template-status aria-live="polite">Choose a template from the list.</span><button type="button" data-template-close>Close</button><button type="button" data-template-save disabled>Save template</button></footer></section>';
+      templateModal.innerHTML = '<section class="contao-live-edit-template-card" role="dialog" aria-modal="true" aria-labelledby="contao-live-edit-template-title"><header><div><span class="contao-live-edit-modal-kicker">PROJECT TEMPLATES</span><h2 id="contao-live-edit-template-title">Edit a Contao template</h2><p>Changes are written to the selected file in the project templates folder. Each save keeps a previous version you can restore.</p></div><button type="button" data-template-close aria-label="Close">×</button></header><div class="contao-live-edit-template-layout"><aside><label class="contao-live-edit-template-search">Find a template<input type="search" placeholder="Search templates"></label><nav data-template-list aria-label="Project templates"><p class="contao-live-edit-library-message">Loading templates…</p></nav></aside><main><div class="contao-live-edit-template-file" data-template-path>Select a template to begin</div><div class="contao-live-edit-template-ace" data-template-ace hidden></div><textarea data-template-source spellcheck="false" aria-label="Template source" disabled></textarea></main></div><footer><span data-template-status aria-live="polite">Choose a template from the list.</span><button type="button" data-template-restore disabled>Restore previous version</button><button type="button" data-template-close>Close</button><button type="button" data-template-save disabled>Save template</button></footer></section>';
       document.body.append(templateModal);
-      templateModal.querySelectorAll('[data-template-close]').forEach((button) => button.addEventListener('click', () => templateModal.remove()));
-      templateModal.addEventListener('click', (event) => { if (event.target === templateModal) templateModal.remove(); });
+      templateModal.querySelectorAll('[data-template-close]').forEach((button) => button.addEventListener('click', closeTemplateModal));
+      templateModal.addEventListener('click', (event) => { if (event.target === templateModal) closeTemplateModal(); });
     }
     if (!templateModal.isConnected) document.body.append(templateModal);
     const list = templateModal.querySelector('[data-template-list]');
@@ -118,6 +186,7 @@
     const status = templateModal.querySelector('[data-template-status]');
     const pathLabel = templateModal.querySelector('[data-template-path]');
     const save = templateModal.querySelector('[data-template-save]');
+    const restore = templateModal.querySelector('[data-template-restore]');
     const currentSource = () => templateAce ? templateAce.getValue() : editor.value;
     const setSource = (value, path = '') => {
       editor.value = value;
@@ -141,17 +210,17 @@
       if (path !== templateSelectedPath && currentSource() !== templateOriginalSource && !window.confirm('Discard unsaved template changes?')) return;
       status.textContent = 'Loading template…';
       try {
-        const response = await fetch(`/contao-live-edit/template-source?path=${encodeURIComponent(path)}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const response = await fetch(appUrl(`/contao-live-edit/template-source?path=${encodeURIComponent(path)}`), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Could not open template.');
-        templateSelectedPath = path; templateOriginalSource = result.content; setSource(templateOriginalSource, path); editor.disabled = false; save.disabled = false;
+        templateSelectedPath = path; templateOriginalSource = result.content; setSource(templateOriginalSource, path); editor.disabled = false; save.disabled = false; restore.disabled = !result.hasBackup;
         pathLabel.textContent = path; status.textContent = 'Saved source';
         list.querySelectorAll('button').forEach((item) => item.classList.toggle('is-selected', item === button));
         templateAce ? templateAce.focus() : editor.focus();
       } catch (error) { status.textContent = error.message; status.classList.add('is-error'); }
     };
     try {
-      const response = await fetch('/contao-live-edit/templates', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const response = await fetch(appUrl('/contao-live-edit/templates'), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not load templates.');
       list.replaceChildren();
@@ -173,13 +242,30 @@
     save.onclick = async () => {
       if (!templateSelectedPath) return;
       save.disabled = true; status.classList.remove('is-error'); status.textContent = 'Saving…';
-      try { await request('/contao-live-edit/save-template', { path: templateSelectedPath, content: currentSource() }); templateOriginalSource = currentSource(); status.textContent = 'Template saved'; }
+      try { const result = await request('/contao-live-edit/save-template', { path: templateSelectedPath, content: currentSource() }); templateOriginalSource = currentSource(); restore.disabled = !result.hasBackup; status.textContent = 'Template saved. Previous version is available to restore.'; }
       catch (error) { status.classList.add('is-error'); status.textContent = error.message || 'Could not save template.'; }
       finally { save.disabled = false; }
+    };
+    restore.onclick = async () => {
+      if (!templateSelectedPath || !window.confirm('Restore the previous saved version of this template? The current source will become the new backup.')) return;
+      restore.disabled = true; status.classList.remove('is-error'); status.textContent = 'Restoring previous version…';
+      try {
+        const result = await request('/contao-live-edit/restore-template', { path: templateSelectedPath });
+        templateOriginalSource = result.content; setSource(templateOriginalSource, templateSelectedPath); restore.disabled = !result.hasBackup;
+        status.textContent = 'Previous version restored. The version you replaced is now the backup.';
+      } catch (error) { restore.disabled = false; status.classList.add('is-error'); status.textContent = error.message || 'Could not restore the previous template version.'; }
     };
   };
 
   bar.querySelector('[data-action="templates"]').addEventListener('click', openTemplateEditor);
+
+  window.addEventListener('beforeunload', (event) => {
+    const hasUnsavedText = activeField && activeField.innerHTML !== originalMarkup;
+    const hasUnsavedTemplate = templateModal?.isConnected && templateHasUnsavedChanges();
+    if (!hasUnsavedText && !hasUnsavedTemplate && !popoverDirty) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
 
   const placePopover = (node) => {
     const rect = node.getBoundingClientRect();
@@ -209,6 +295,13 @@
     const editable = target.closest('[data-contao-live-edit-record][data-contao-live-edit-type]');
     if (!editable) return null;
 
+    const caption = target.closest('figcaption');
+    if (caption && editable.dataset.contaoLiveEditType === 'image' && editable.contains(caption)) {
+      caption.dataset.inlineRecord = editable.dataset.contaoLiveEditRecord;
+      caption.dataset.inlineField = 'caption';
+      return caption;
+    }
+
     const heading = target.closest('h1,h2,h3,h4,h5,h6');
     const fieldName = editable.dataset.contaoLiveEditType === 'headline' ? 'headline'
       : editable.dataset.contaoLiveEditType === 'text' && heading && editable.contains(heading) ? 'headline'
@@ -224,7 +317,7 @@
   const hasDragType = (event, type) => Array.from(event.dataTransfer?.types || []).includes(type);
   const isContentDrag = (event) => hasDragType(event, 'application/x-contao-live-edit-element');
   const request = async (path, payload) => {
-    const response = await fetch(path, {
+    const response = await fetch(appUrl(path), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -263,6 +356,36 @@
     settings.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openElementEditor(record); });
     record.append(settings);
   };
+
+  const keyboardTargetState = new Map();
+  const updateKeyboardTargets = (active) => {
+    if (!active) {
+      for (const [field, previousTabindex] of keyboardTargetState) {
+        if (!field.isConnected) continue;
+        if (null === previousTabindex) field.removeAttribute('tabindex');
+        else field.setAttribute('tabindex', previousTabindex);
+      }
+      keyboardTargetState.clear();
+      return;
+    }
+
+    const candidates = new Set(document.querySelectorAll(fields));
+    for (const record of document.querySelectorAll('[data-contao-live-edit-record][data-contao-live-edit-type]')) {
+      addMoveHandle(record);
+      const field = inlineTextField(record);
+      if (field) candidates.add(field);
+      for (const caption of record.querySelectorAll('figcaption')) {
+        const captionField = inlineTextField(caption);
+        if (captionField) candidates.add(captionField);
+      }
+    }
+    for (const field of candidates) {
+      if (!keyboardTargetState.has(field)) keyboardTargetState.set(field, field.getAttribute('tabindex'));
+      field.setAttribute('tabindex', '0');
+    }
+  };
+
+  syncActivation();
 
   document.addEventListener('pointerover', (event) => {
     if (!isActive()) return;
@@ -313,7 +436,8 @@
   }, true);
 
   const openLinkEditor = (link) => {
-    closePopover();
+    if (activeField && !finish(true)) return;
+    if (!closePopover()) return;
     popover = document.createElement('form');
     popover.className = 'contao-live-edit-edit-popover contao-live-edit-link-popover';
     popover.setAttribute('role', 'dialog');
@@ -331,9 +455,10 @@
     popover.elements.title.value = link.getAttribute('title') || '';
     popover.elements.rel.value = link.getAttribute('rel') || '';
     popover.elements.target.checked = link.target === '_blank';
+    trackPopoverChanges();
     placePopover(link);
     popover.elements.label.focus();
-    popover.querySelector('[data-action="cancel"]').addEventListener('click', closePopover);
+    popover.querySelector('[data-action="cancel"]').addEventListener('click', () => closePopover(true));
     popover.addEventListener('click', (event) => event.stopPropagation());
     popover.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -341,8 +466,9 @@
       const message = popover.querySelector('.contao-live-edit-popover-status');
       submit.disabled = true;
       message.textContent = 'Saving…';
+      setPopoverSaving(true);
       try {
-        const response = await fetch('/contao-live-edit/save-link', {
+        const response = await fetch(appUrl('/contao-live-edit/save-link'), {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -365,10 +491,12 @@
         else link.removeAttribute('title');
         if (popover.elements.rel.value) link.setAttribute('rel', popover.elements.rel.value);
         else link.removeAttribute('rel');
-        closePopover();
+        setPopoverSaving(false);
+        closePopover(true);
         setMessage('Saved');
         window.setTimeout(() => setMessage(''), 1200);
       } catch (error) {
+        setPopoverSaving(false);
         submit.disabled = false;
         message.textContent = error.message || 'Could not save this link.';
         message.classList.add('is-error');
@@ -377,7 +505,8 @@
   };
 
   const openImageEditor = (image) => {
-    closePopover();
+    if (activeField && !finish(true)) return;
+    if (!closePopover()) return;
     const imageRecord = image.closest('[data-contao-live-edit-type="image"]');
 
     if (!imageRecord?.dataset.contaoLiveEditRecord) {
@@ -404,6 +533,7 @@
     popover.elements.alt.value = image.alt || '';
     popover.elements.title.value = image.title || '';
     popover.elements.caption.value = caption;
+    trackPopoverChanges();
 
     const fileInput = popover.elements.file;
     const dropzone = popover.querySelector('.contao-live-edit-image-dropzone');
@@ -433,12 +563,13 @@
       preview.src = imagePreviewUrl;
       fileName.textContent = file.name;
       dropzone.classList.add('has-file');
+      popoverDirty = true;
       uploadStatus.textContent = '';
       uploadStatus.classList.remove('is-error');
     };
 
     popover.addEventListener('click', (event) => event.stopPropagation());
-    popover.querySelectorAll('[data-action="cancel"]').forEach((button) => button.addEventListener('click', closePopover));
+    popover.querySelectorAll('[data-action="cancel"]').forEach((button) => button.addEventListener('click', () => closePopover(true)));
     popover.querySelector('[data-action="browse"]').addEventListener('click', () => fileInput.click());
     const loadLibrary = async () => {
       libraryPanel.hidden = false;
@@ -450,7 +581,7 @@
 
       try {
         const folder = libraryFolders.at(-1) || '';
-        const response = await fetch(`/contao-live-edit/image-library${folder ? `?folder=${encodeURIComponent(folder)}` : ''}`, {
+        const response = await fetch(appUrl(`/contao-live-edit/image-library${folder ? `?folder=${encodeURIComponent(folder)}` : ''}`), {
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
@@ -501,6 +632,7 @@
               preview.src = item.url;
               fileName.textContent = `Selected: ${item.name}`;
               dropzone.classList.add('has-file');
+              popoverDirty = true;
               uploadStatus.textContent = '';
               uploadStatus.classList.remove('is-error');
               libraryPanel.hidden = true;
@@ -544,6 +676,7 @@
       submit.disabled = true;
       uploadStatus.textContent = 'Saving…';
       uploadStatus.classList.remove('is-error');
+      setPopoverSaving(true);
       const formData = new FormData();
       formData.set('id', imageRecord.dataset.contaoLiveEditRecord);
       formData.set('alt', popover.elements.alt.value);
@@ -554,7 +687,7 @@
       else if (selectedUuid) formData.set('fileUuid', selectedUuid);
 
       try {
-        const response = await fetch('/contao-live-edit/save-image', {
+        const response = await fetch(appUrl('/contao-live-edit/save-image'), {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -581,10 +714,12 @@
             else figcaption.remove();
           }
         }
-        closePopover();
+        setPopoverSaving(false);
+        closePopover(true);
         setMessage('Image saved');
         window.setTimeout(() => setMessage(''), 1400);
       } catch (error) {
+        setPopoverSaving(false);
         submit.disabled = false;
         uploadStatus.textContent = error.message || 'Could not save this image.';
         uploadStatus.classList.add('is-error');
@@ -594,25 +729,64 @@
   };
 
   const openElementEditor = async (record) => {
+    if (activeField && !finish(true)) return;
     const id = record?.dataset.contaoLiveEditRecord;
     if (!id) return;
-    closePopover();
+    if (!closePopover()) return;
     popover = document.createElement('form');
     popover.className = 'contao-live-edit-edit-popover contao-live-edit-element-modal';
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-modal', 'true');
     popover.setAttribute('aria-label', 'Edit content element');
-    popover.innerHTML = '<div class="contao-live-edit-element-modal-card"><header class="contao-live-edit-element-header"><div><span class="contao-live-edit-modal-kicker">QUICK EDIT</span><h2>Element settings</h2><p>Edit the fields that matter here. Timing and visibility are just below.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header><div class="contao-live-edit-element-fields" data-element-fields><div class="contao-live-edit-library-message">Loading settings…</div></div><footer class="contao-live-edit-image-modal-footer"><div class="contao-live-edit-element-quick-actions"><button type="button" class="contao-live-edit-delete-element" data-action="delete" aria-label="Remove element" title="Remove element"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12m-10 0 .7 10.2h6.6L14 6M8 6V4h4v2m-3 3v4m2-4v4"/></svg></button><button type="button" class="contao-live-edit-visibility-toggle" data-action="visibility" aria-pressed="false" aria-label="Hide element" title="Hide element"></button></div><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save changes</button></footer></div>';
+    popover.innerHTML = '<div class="contao-live-edit-element-modal-card"><header class="contao-live-edit-element-header"><div><span class="contao-live-edit-modal-kicker">QUICK EDIT</span><h2>Element settings</h2><p>Edit the fields that matter here. Timing and visibility are just below.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header><div class="contao-live-edit-element-fields" data-element-fields><div class="contao-live-edit-library-message">Loading settings…</div></div><footer class="contao-live-edit-image-modal-footer"><div class="contao-live-edit-element-quick-actions"><button type="button" class="contao-live-edit-reorder-control" data-action="move-up" aria-label="Move element up" title="Move element up">↑ Move up</button><button type="button" class="contao-live-edit-reorder-control" data-action="move-down" aria-label="Move element down" title="Move element down">↓ Move down</button><button type="button" class="contao-live-edit-delete-element" data-action="delete" aria-label="Remove element" title="Remove element"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12m-10 0 .7 10.2h6.6L14 6M8 6V4h4v2m-3 3v4m2-4v4"/></svg></button><button type="button" class="contao-live-edit-visibility-toggle" data-action="visibility" aria-pressed="false" aria-label="Hide element" title="Hide element"></button></div><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save changes</button></footer></div>';
     document.body.append(popover);
+    trackPopoverChanges();
     popover.addEventListener('click', (event) => event.stopPropagation());
-    popover.querySelectorAll('[data-action="cancel"]').forEach((button) => button.addEventListener('click', closePopover));
+    popover.querySelectorAll('[data-action="cancel"]').forEach((button) => button.addEventListener('click', () => closePopover(true)));
     const fieldPanel = popover.querySelector('[data-element-fields]');
     const status = popover.querySelector('.contao-live-edit-popover-status');
+    const moveUpButton = popover.querySelector('[data-action="move-up"]');
+    const moveDownButton = popover.querySelector('[data-action="move-down"]');
+    const sameParentRecords = () => [...document.querySelectorAll('[data-contao-live-edit-record][data-contao-live-edit-type]')]
+      .filter((item) => item.dataset.contaoLiveEditParentId === record.dataset.contaoLiveEditParentId
+        && item.dataset.contaoLiveEditParentTable === record.dataset.contaoLiveEditParentTable);
+    const refreshMoveButtons = () => {
+      const siblings = sameParentRecords();
+      const index = siblings.findIndex((item) => item.dataset.contaoLiveEditRecord === id);
+      moveUpButton.disabled = index <= 0;
+      moveDownButton.disabled = index < 0 || index >= siblings.length - 1;
+    };
+    const moveElement = async (direction, button) => {
+      const siblings = sameParentRecords();
+      const index = siblings.findIndex((item) => item.dataset.contaoLiveEditRecord === id);
+      const anchor = siblings[index + (direction === 'up' ? -1 : 1)];
+      if (!anchor || !closePopover()) return;
+      setMessage(`Moving element ${direction}…`);
+      try {
+        await request('/contao-live-edit/reorder-content', {
+          id,
+          anchorId: anchor.dataset.contaoLiveEditRecord,
+          placement: direction === 'up' ? 'before' : 'after'
+        });
+        setMessage('Element moved');
+        window.location.reload();
+      } catch (error) {
+        setMessage(error.message || 'Could not move this element.', true);
+      }
+    };
+    refreshMoveButtons();
+    moveUpButton.addEventListener('click', () => moveElement('up', moveUpButton));
+    moveDownButton.addEventListener('click', () => moveElement('down', moveDownButton));
     popover.querySelector('[data-action="delete"]').addEventListener('click', async () => {
-      if (!window.confirm('Remove this element from the page? This cannot be undone.')) return;
-      const button = popover.querySelector('[data-action="delete"]'); button.disabled = true; status.textContent = 'Removing…';
-      try { await request('/contao-live-edit/delete-element', { id }); closePopover(); window.location.reload(); }
-      catch (error) { button.disabled = false; status.textContent = error.message || 'Could not remove this element.'; status.classList.add('is-error'); }
+      if (popover.dataset.saving === 'true') return;
+      const message = popoverDirty
+        ? 'Remove this element and discard its unsaved settings? This cannot be undone.'
+        : 'Remove this element from the page? This cannot be undone.';
+      if (!window.confirm(message)) return;
+      closePopover(true);
+      setMessage('Removing element…');
+      try { await request('/contao-live-edit/delete-element', { id }); window.location.reload(); }
+      catch (error) { setMessage(error.message || 'Could not remove this element.', true); }
     });
 
     const visibilityButton = popover.querySelector('[data-action="visibility"]');
@@ -625,7 +799,10 @@
         ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2.2"/><path d="m3 3 14 14"/></svg>'
         : '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2.2"/></svg>';
     };
-    visibilityButton.addEventListener('click', () => renderVisibilityButton(visibilityButton.dataset.hidden !== 'true'));
+    visibilityButton.addEventListener('click', () => {
+      popoverDirty = true;
+      renderVisibilityButton(visibilityButton.dataset.hidden !== 'true');
+    });
 
     const controlFor = (field) => {
       const wrapper = document.createElement(field.name === 'cssID' || ['listWizard', 'rowWizard', 'tableWizard'].includes(field.widget) ? 'div' : 'label');
@@ -780,7 +957,7 @@
           library.hidden = false; library.replaceChildren();
           try {
             const folder = folders.at(-1) || '';
-            const response = await fetch(`/contao-live-edit/image-library?all=1${folder ? `&folder=${encodeURIComponent(folder)}` : ''}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const response = await fetch(appUrl(`/contao-live-edit/image-library?all=1${folder ? `&folder=${encodeURIComponent(folder)}` : ''}`), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Could not load files.');
             const heading = document.createElement('div'); heading.className = 'contao-live-edit-element-library-heading';
             const title = document.createElement('strong'); title.textContent = result.folder?.name || 'Contao file library'; heading.append(title);
@@ -841,7 +1018,7 @@
     };
 
     try {
-      const response = await fetch(`/contao-live-edit/element-fields/${encodeURIComponent(id)}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const response = await fetch(appUrl(`/contao-live-edit/element-fields/${encodeURIComponent(id)}`), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not load element settings.');
       const editorMode = result.editorMode || 'generic';
@@ -945,6 +1122,7 @@
     popover.addEventListener('submit', async (event) => {
       event.preventDefault();
       const submit = popover.querySelector('[type="submit"]'); submit.disabled = true; status.textContent = 'Saving…'; status.classList.remove('is-error');
+      setPopoverSaving(true);
       const values = {};
       for (const input of fieldPanel.querySelectorAll('input,textarea,select')) {
         if (input.dataset.choiceField) continue;
@@ -955,12 +1133,12 @@
         else if (input.dataset.widget === 'datetime') values[input.name] = input.value ? String(Math.floor(new Date(input.value).getTime() / 1000)) : '';
         else if (input.dataset.widget === 'pageTree' && input.multiple) values[input.name] = [...input.selectedOptions].map((option) => option.value);
         else if (input.dataset.widget === 'fileTree') {
-          try { values[input.name] = JSON.parse(input.value || '[]'); } catch { status.textContent = 'Choose files from the library or enter valid JSON.'; status.classList.add('is-error'); submit.disabled = false; return; }
+          try { values[input.name] = JSON.parse(input.value || '[]'); } catch { setPopoverSaving(false); status.textContent = 'Choose files from the library or enter valid JSON.'; status.classList.add('is-error'); submit.disabled = false; return; }
         }
         else if (input.dataset.widget === 'listWizard') values[input.name] = input.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
         else if (['rowWizard', 'tableWizard'].includes(input.dataset.widget)) values[input.name] = input.value.split(/\r?\n/).filter(Boolean).map((line) => line.split('\t'));
         else if (input.dataset.jsonStructuredValue || input.dataset.widget === 'imageSize' || (input.tagName === 'TEXTAREA' && input.value.trim().startsWith('['))) {
-          try { values[input.name] = JSON.parse(input.value); } catch { status.textContent = 'Enter valid JSON for this structured field.'; status.classList.add('is-error'); submit.disabled = false; return; }
+          try { values[input.name] = JSON.parse(input.value); } catch { setPopoverSaving(false); status.textContent = 'Enter valid JSON for this structured field.'; status.classList.add('is-error'); submit.disabled = false; return; }
         }
         else if (input.classList.contains('contao-live-edit-native-rte') && window.hugerte?.get(input.id)) values[input.name] = window.hugerte.get(input.id).getContent();
         else values[input.name] = input.value;
@@ -996,8 +1174,9 @@
       for (const name of choiceFields) values[name] = [...fieldPanel.querySelectorAll(`[data-choice-field="${CSS.escape(name)}"]:checked`)].map((input) => input.value);
       try {
         await request('/contao-live-edit/save-element-fields', { id, fields: values });
-        closePopover(); setMessage('Element saved'); window.setTimeout(() => window.location.reload(), 350);
-      } catch (error) { submit.disabled = false; status.textContent = error.message || 'Could not save element settings.'; status.classList.add('is-error'); }
+        setPopoverSaving(false);
+        closePopover(true); setMessage('Element saved'); window.setTimeout(() => window.location.reload(), 350);
+      } catch (error) { setPopoverSaving(false); submit.disabled = false; status.textContent = error.message || 'Could not save element settings.'; status.classList.add('is-error'); }
     });
     const firstField = fieldPanel.querySelector('.contao-live-edit-source-editor') || fieldPanel.querySelector('.contao-live-edit-wizard-editor input, input:not([type="hidden"]),textarea,select');
     (firstField || popover.querySelector('[type="submit"]')).focus();
@@ -1022,6 +1201,7 @@
         const clickToReplay = pendingClick?.anchor;
         pendingClick = null;
         if (!clickToReplay?.isConnected) return;
+        if (activeField && !finish(true)) return;
         replayingClick = true;
         clickToReplay.click();
         replayingClick = false;
@@ -1040,6 +1220,14 @@
       event.preventDefault();
       event.stopPropagation();
       openLinkEditor(link);
+      return;
+    }
+    const caption = event.target.closest('figcaption');
+    const captionField = caption && inlineTextField(caption);
+    if (captionField && !caption.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover')) {
+      event.preventDefault();
+      event.stopPropagation();
+      begin(captionField);
       return;
     }
     const image = event.target.closest('img') || elementAtPoint('img', event.clientX, event.clientY);
@@ -1074,13 +1262,22 @@
   document.addEventListener('keydown', (event) => {
     if (popover && event.key === 'Escape') {
       event.preventDefault();
-      closePopover();
+      closePopover(true);
       return;
+    }
+    if (isActive() && !activeField && ['Enter', 'F2'].includes(event.key)) {
+      const field = event.target.closest(fields);
+      if (field && !event.target.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover, .contao-live-edit-move-handle, .contao-live-edit-settings-handle')) {
+        event.preventDefault();
+        event.stopPropagation();
+        begin(field);
+        return;
+      }
     }
     if (!activeField) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      finish(true);
+      finish(true, true);
     } else if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.preventDefault();
       save();
@@ -1094,14 +1291,19 @@
     textMode = !textMode;
     syncActivation();
   });
-  cancelButton.addEventListener('click', () => finish(true));
+  cancelButton.addEventListener('click', () => finish(true, true));
   saveButton.addEventListener('click', save);
 
   async function save() {
     if (!activeField) return;
     const field = activeField;
-    const value = field.innerText.trim();
-    if (!value) {
+    const cleanedField = field.cloneNode(true);
+    cleanedField.querySelectorAll('.contao-live-edit-move-handle, .contao-live-edit-settings-handle').forEach((control) => control.remove());
+    const contentRoot = cleanedField.querySelector('.rte') || cleanedField;
+    const plainText = contentRoot.innerText.trim();
+    const richTextField = ['text', 'teaser'].includes(field.dataset.inlineField);
+    const value = richTextField ? contentRoot.innerHTML.trim() : plainText;
+    if (!plainText && 'caption' !== field.dataset.inlineField) {
       setMessage('Text cannot be empty.', true);
       return;
     }
@@ -1110,12 +1312,13 @@
     setMessage('Saving…');
 
     try {
-      const response = await fetch('/contao-live-edit/save-inline', {
+      const response = await fetch(appUrl('/contao-live-edit/save-inline'), {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({
           id: field.dataset.inlineRecord,
+          recordType: field.dataset.inlineRecordType || 'content',
           field: field.dataset.inlineField,
           value,
           _token: token
@@ -1124,18 +1327,30 @@
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not save this text.');
       if (['headline', 'subheadline'].includes(field.dataset.inlineField)) {
-        field.textContent = value;
+        field.textContent = result.value ?? plainText;
+      } else if ('caption' === field.dataset.inlineField) {
+        if ('' === (result.value ?? plainText)) field.remove();
+        else field.textContent = result.value ?? plainText;
       } else {
         const richText = field.querySelector('.rte') || field;
-        richText.replaceChildren(...value.split(/\n+/).filter(Boolean).map((line) => {
-          const paragraph = document.createElement('p');
-          paragraph.textContent = line;
-          return paragraph;
-        }));
+        const template = document.createElement('template');
+        template.innerHTML = result.value ?? value;
+        if (richText === field) {
+          const editorControls = [...field.children].filter((child) => child.matches('.contao-live-edit-move-handle, .contao-live-edit-settings-handle'));
+          for (const child of [...field.childNodes]) if (!editorControls.includes(child)) child.remove();
+          field.insertBefore(template.content, editorControls[0] || null);
+        } else {
+          richText.replaceChildren(template.content);
+        }
       }
+      originalMarkup = field.innerHTML;
+      finish(false);
       setMessage('Saved');
-      window.setTimeout(() => finish(false), 700);
+      window.setTimeout(() => {
+        if (!activeField) setMessage('');
+      }, 1600);
     } catch (error) {
+      if (activeField === field) field.contentEditable = 'true';
       saveButton.disabled = false;
       setMessage(error.message || 'Could not save this text.', true);
     }

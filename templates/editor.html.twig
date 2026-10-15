@@ -1,36 +1,43 @@
 <!doctype html>
-<html lang="en" data-contao-live-edit-theme="{{ theme|default('dark') }}">
+<html lang="en" data-contao-live-edit-theme="{{ theme|default('dark') }}" data-base-path="{{ basePath }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="{{ theme|default('dark') == 'dark' ? '#101214' : '#f6f5ef' }}">
   <title>Contao Live Edit</title>
-  <link rel="stylesheet" href="/bundles/contaoliveedit/editor/editor.css?v=5">
+  <link rel="stylesheet" href="{{ basePath }}/bundles/contaoliveedit/editor/editor.css?v=7">
 </head>
 <body>
   <header class="editor-bar">
-    <a class="editor-brand" href="/" aria-label="Contao Live Edit"><span class="brand-mark">c</span><span>Contao Live Edit</span></a>
+    <a class="editor-brand" href="{{ basePath }}/" aria-label="Contao Live Edit"><span class="brand-mark">c</span><span>Contao Live Edit</span></a>
     <span class="bar-divider"></span>
     <button class="add-toggle" id="addToggle" type="button" aria-expanded="false">＋ Add element</button>
     <div class="bar-spacer"></div>
     <span class="editor-hint"><span class="hint-dot"></span> Changes are managed in Contao</span>
     <button class="edit-toggle" id="editToggle" type="button"><span class="edit-icon">✳</span><span id="editLabel">Activate editor</span></button>
-    <a class="open-site" href="/" target="_blank" rel="noopener">Open site <span>↗</span></a>
+    <a class="open-site" href="{{ basePath }}/" target="_blank" rel="noopener">Open site <span>↗</span></a>
   </header>
   <div class="editor-workspace">
     <aside class="element-picker" id="elementPicker" aria-label="Add a content element" hidden>
       <div class="picker-heading">
-        <div class="picker-intro"><strong>Build the page</strong><span>Drag an element onto the preview</span></div>
+        <div class="picker-intro"><strong>Build the page</strong><span>Choose an element and pick where it goes, or drag it onto the preview.</span></div>
         <input id="elementSearch" type="search" placeholder="Search elements…" aria-label="Search content elements">
       </div>
       <div class="picker-categories" id="pickerCategories"><p class="picker-loading">Loading Contao elements…</p></div>
+      <div class="picker-insertion" id="pickerInsertion" hidden>
+        <p id="pickerInsertionHint">Choose an element above, then select where to place it.</p>
+        <label>Insert relative to <select id="pickerAnchor" aria-label="Choose a page element"></select></label>
+        <label>Position <select id="pickerPlacement"><option value="after">After</option><option value="before">Before</option></select></label>
+        <button id="pickerInsert" type="button" disabled>Add element</button>
+        <span id="pickerInsertionStatus" role="status" aria-live="polite"></span>
+      </div>
       <button class="picker-close" id="pickerClose" type="button" aria-label="Close element picker">×</button>
     </aside>
     <main class="preview-shell" aria-label="Live website preview">
-      <iframe id="sitePreview" src="/" title="Live website preview"></iframe>
+      <iframe id="sitePreview" src="{{ basePath }}/" title="Live website preview"></iframe>
       <div id="previewNotice" class="preview-notice" role="status" aria-live="polite" hidden></div>
     </main>
   </div>
-  <script src="/bundles/contaoliveedit/editor/editor.js?v=5" defer></script>
+  <script src="{{ basePath }}/bundles/contaoliveedit/editor/editor.js?v=7" defer></script>
 </body>
 </html>

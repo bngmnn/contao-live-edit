@@ -6,10 +6,18 @@
   const pickerClose = document.getElementById('pickerClose');
   const pickerCategories = document.getElementById('pickerCategories');
   const elementSearch = document.getElementById('elementSearch');
+  const pickerInsertion = document.getElementById('pickerInsertion');
+  const pickerAnchor = document.getElementById('pickerAnchor');
+  const pickerPlacement = document.getElementById('pickerPlacement');
+  const pickerInsert = document.getElementById('pickerInsert');
+  const pickerInsertionStatus = document.getElementById('pickerInsertionStatus');
   const label = document.getElementById('editLabel');
   const notice = document.getElementById('previewNotice');
+  const basePath = (document.documentElement.dataset.basePath || '').replace(/\/$/, '');
+  const appUrl = (path) => `${basePath}${path.startsWith('/') ? path : `/${path}`}`;
   let noticeTimer;
   let elementCatalogLoaded = false;
+  let selectedElementType = '';
 
   const tell = (message) => {
     notice.textContent = message;
@@ -48,6 +56,7 @@
       toggle.disabled = !control;
       toggle.title = control ? 'Turn in-page editing on or off' : 'Sign in to Contao to use the frontend editor';
       addToggle.disabled = !control || !active;
+      addToggle.title = !control ? 'Sign in to Contao to add elements' : !active ? 'Activate the editor to add elements' : 'Add a content element';
     } catch (_) {
       toggle.disabled = true;
     }
@@ -113,6 +122,68 @@
     event.dataTransfer.effectAllowed = 'copy';
   });
 
+  pickerCategories.addEventListener('click', (event) => {
+    const item = event.target.closest('[data-element-type]');
+    if (!item) return;
+    selectedElementType = item.dataset.elementType;
+    pickerAnchor.replaceChildren();
+    pickerInsertionStatus.textContent = '';
+    const anchors = new Map();
+    try {
+      for (const record of frame.contentDocument.querySelectorAll('[data-contao-live-edit-record][data-contao-live-edit-type]')) {
+        const id = record.dataset.contaoLiveEditRecord;
+        if (!id || anchors.has(id)) continue;
+        const copy = (record.innerText || '').replace(/\s+/g, ' ').trim();
+        const summary = copy ? ` — ${copy.slice(0, 70)}${copy.length > 70 ? '…' : ''}` : '';
+        anchors.set(id, `${record.dataset.contaoLiveEditType}${summary} (ID ${id})`);
+      }
+    } catch (_) {
+      pickerInsertionStatus.textContent = 'The preview is unavailable. Reload it and try again.';
+    }
+    for (const [id, text] of anchors) {
+      const option = document.createElement('option');
+      option.value = id;
+      option.textContent = text;
+      pickerAnchor.append(option);
+    }
+    pickerInsertion.hidden = false;
+    pickerInsert.disabled = anchors.size === 0;
+    if (!anchors.size) pickerInsertionStatus.textContent = 'No content elements are visible to use as an insertion point.';
+    else pickerAnchor.focus();
+  });
+
+  pickerInsert.addEventListener('click', async () => {
+    if (!selectedElementType || !pickerAnchor.value) return;
+    let token;
+    try {
+      token = frame.contentDocument.querySelector('meta[name="contao-live-edit-inline-token"]')?.content;
+    } catch (_) {}
+    if (!token) {
+      pickerInsertionStatus.textContent = 'Sign in to Contao in this browser to add elements.';
+      return;
+    }
+    pickerInsert.disabled = true;
+    pickerInsertionStatus.textContent = 'Adding element…';
+    try {
+      const response = await fetch(appUrl('/contao-live-edit/insert-content'), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ type: selectedElementType, anchorId: pickerAnchor.value, placement: pickerPlacement.value, _token: token })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not add this element.');
+      pickerInsertionStatus.textContent = 'Element added. Refreshing preview…';
+      selectedElementType = '';
+      pickerInsertion.hidden = true;
+      tell('Element added');
+      frame.contentWindow.location.reload();
+    } catch (error) {
+      pickerInsert.disabled = false;
+      pickerInsertionStatus.textContent = error.message || 'Could not add this element.';
+    }
+  });
+
   elementSearch.addEventListener('input', () => {
     const query = elementSearch.value.trim().toLocaleLowerCase();
     pickerCategories.querySelectorAll('[data-picker-category]').forEach((category) => {
@@ -130,7 +201,7 @@
     if (elementCatalogLoaded) return;
     pickerCategories.replaceChildren(Object.assign(document.createElement('p'), { className: 'picker-loading', textContent: 'Loading Contao elements…' }));
     try {
-      const response = await fetch('/contao-live-edit/content-elements', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const response = await fetch(appUrl('/contao-live-edit/content-elements'), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not load the Contao element list.');
       pickerCategories.replaceChildren();

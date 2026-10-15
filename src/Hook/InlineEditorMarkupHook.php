@@ -10,6 +10,24 @@ use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 final class InlineEditorMarkupHook
 {
+    public static function markNewsArticle(object $template, array $row, object $module): void
+    {
+        if (!System::getContainer()->get('contao.security.token_checker')->hasBackendUser() || !BackendUser::getInstance()?->isAdmin) {
+            return;
+        }
+
+        $id = filter_var($row['id'] ?? null, FILTER_VALIDATE_INT);
+
+        if (!$id) {
+            return;
+        }
+
+        $classes = preg_split('/\\s+/', trim((string) ($template->class ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $classes[] = 'contao-live-edit-news';
+        $classes[] = 'contao-live-edit-news-'.$id;
+        $template->class = implode(' ', array_unique($classes));
+    }
+
     public static function addRecordAttributes(object $row, string $content, object $element): string
     {
         if (!System::getContainer()->get('contao.security.token_checker')->hasBackendUser()) {
@@ -24,17 +42,20 @@ final class InlineEditorMarkupHook
 
         $recordId = htmlspecialchars((string) $row->id, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $recordType = htmlspecialchars((string) $row->type, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $parentId = htmlspecialchars((string) ($row->pid ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $parentTable = htmlspecialchars((string) ($row->ptable ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $recordAttributes = 'data-contao-live-edit-record="'.$recordId.'" data-contao-live-edit-type="'.$recordType.'" data-contao-live-edit-parent-id="'.$parentId.'" data-contao-live-edit-parent-table="'.$parentTable.'"';
         if (!preg_match('/<[a-z][a-z0-9:-]*(\s[^<>]*?)?>/i', $content)) {
-            return '<div class="contao-live-edit-empty-element" data-contao-live-edit-record="'.$recordId.'" data-contao-live-edit-type="'.$recordType.'" aria-label="Empty '.$recordType.' element"><span class="contao-live-edit-empty-element-label">'.$recordType.'</span></div>';
+            return '<div class="contao-live-edit-empty-element" '.$recordAttributes.' aria-label="Empty '.$recordType.' element"><span class="contao-live-edit-empty-element-label">'.$recordType.'</span></div>';
         }
         if (preg_match('/<\s*(iframe|video|audio|embed|object)\b/i', $content)) {
-            return '<div class="contao-live-edit-media-element" data-contao-live-edit-record="'.$recordId.'" data-contao-live-edit-type="'.$recordType.'">'.$content.'</div>';
+            return '<div class="contao-live-edit-media-element" '.$recordAttributes.'>'.$content.'</div>';
         }
         $inserted = false;
 
         return preg_replace_callback(
             '/<([a-z][a-z0-9:-]*)(\s[^<>]*?)?>/i',
-            static function (array $match) use (&$inserted, $recordId, $recordType): string {
+            static function (array $match) use (&$inserted, $recordAttributes): string {
                 if ($inserted || in_array(strtolower($match[1]), ['script', 'style'], true)) {
                     return $match[0];
                 }
@@ -47,7 +68,7 @@ final class InlineEditorMarkupHook
 
                 $attributes = $match[2] ?? '';
 
-                return '<'.$match[1].$attributes.' data-contao-live-edit-record="'.$recordId.'" data-contao-live-edit-type="'.$recordType.'">';
+                return '<'.$match[1].$attributes.' '.$recordAttributes.'>';
             },
             $content,
         ) ?? $content;
@@ -71,18 +92,23 @@ final class InlineEditorMarkupHook
 
         $token = $container->get(CsrfTokenManagerInterface::class)->getToken('contao_live_edit')->getValue();
         $theme = ('light' === ($GLOBALS['TL_CONFIG']['contaoLiveEditTheme'] ?? 'dark')) ? 'light' : 'dark';
+        $basePath = rtrim($container->get('request_stack')->getCurrentRequest()?->getBasePath() ?? '', '/');
+        $escapedBasePath = htmlspecialchars($basePath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $buffer = preg_replace_callback('/<html\b[^>]*>/i', static function (array $match) use ($theme): string {
             $tag = preg_replace('/\sdata-contao-live-edit-theme=("|\')[^"\']*\1/i', '', $match[0]) ?? $match[0];
             return substr($tag, 0, -1).' data-contao-live-edit-theme="'.$theme.'">';
         }, $buffer, 1) ?? $buffer;
-        $head = '<meta name="contao-live-edit-inline-token" content="'.htmlspecialchars($token, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"><link rel="stylesheet" href="/bundles/contaoliveedit/css/inline-edit.css?v=7">';
+        $head = '<meta name="contao-live-edit-inline-token" content="'.htmlspecialchars($token, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'">'
+            .'<meta name="contao-live-edit-base-path" content="'.$escapedBasePath.'">'
+            .'<link rel="stylesheet" href="'.$escapedBasePath.'/bundles/contaoliveedit/css/inline-edit.css?v=9">';
         if (str_contains($buffer, '</head>')) {
             $buffer = preg_replace('~</head>~i', $head.'</head>', $buffer, 1) ?? $buffer;
         } else {
             $buffer = $head.$buffer;
         }
 
-        $script = '<script src="/assets/hugerte/js/hugerte.min.js" defer></script><script src="/bundles/contaoliveedit/js/inline-edit.js?v=8" defer></script>';
+        $script = '<script src="'.$escapedBasePath.'/assets/hugerte/js/hugerte.min.js" defer></script>'
+            .'<script src="'.$escapedBasePath.'/bundles/contaoliveedit/js/inline-edit.js?v=12" defer></script>';
         if (str_contains($buffer, '</body>')) {
             return preg_replace('~</body>~i', $script.'</body>', $buffer, 1) ?? $buffer;
         }

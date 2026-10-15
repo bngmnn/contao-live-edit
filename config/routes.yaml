@@ -72,3 +72,8 @@ contao_live_edit_template_save:
     path: /contao-live-edit/save-template
     controller: ContaoLiveEdit\Controller\TemplateEditController::save
     methods: [POST]
+
+contao_live_edit_template_restore:
+    path: /contao-live-edit/restore-template
+    controller: ContaoLiveEdit\Controller\TemplateEditController::restore
+    methods: [POST]

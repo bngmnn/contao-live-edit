@@ -19,6 +19,8 @@ use Symfony\Component\Filesystem\Path;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
+use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -55,13 +57,41 @@ final class InlineContentSaveController
 
         $id = filter_var($payload['id'] ?? null, FILTER_VALIDATE_INT);
         $field = (string) ($payload['field'] ?? '');
+        $recordType = (string) ($payload['recordType'] ?? 'content');
         $value = trim((string) ($payload['value'] ?? ''));
+        $maximumLength = match ($field) {
+            'headline', 'subheadline' => 255,
+            'caption' => 500,
+            'text', 'teaser' => 20000,
+            default => 0,
+        };
 
-        if (!$id || !in_array($field, ['headline', 'text', 'subheadline', 'teaser'], true) || '' === $value || mb_strlen($value) > 4000) {
+        if (!$id || 0 === $maximumLength || ('' === $value && 'caption' !== $field) || mb_strlen($value) > $maximumLength) {
             return new JsonResponse(['error' => 'The text is empty or too long.'], 422);
         }
-        if ('headline' === $field && mb_strlen($value) > 255) {
-            return new JsonResponse(['error' => 'Headlines must be 255 characters or fewer.'], 422);
+
+        if ('news' === $recordType) {
+            $news = class_exists(NewsModel::class) ? NewsModel::findByPk($id) : null;
+
+            if (!$news || !in_array($field, ['headline', 'subheadline', 'teaser'], true)) {
+                return new JsonResponse(['error' => 'This news item cannot be edited inline.'], 404);
+            }
+
+            if ('teaser' === $field) {
+                $value = $this->sanitizeRichText($value);
+                $news->teaser = $value;
+            } else {
+                $news->{$field} = htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            }
+
+            $news->tstamp = time();
+            $news->save();
+
+            return new JsonResponse(['saved' => true, 'id' => (int) $news->id, 'field' => $field, 'value' => $value]);
+        }
+
+        if ('content' !== $recordType) {
+            return new JsonResponse(['error' => 'This record type cannot be edited inline.'], 404);
         }
 
         $element = ContentModel::findByPk($id);
@@ -72,39 +102,38 @@ final class InlineContentSaveController
                 $headline['value'] = htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $element->headline = serialize($headline);
             } else {
-                $element->text = $this->paragraphs($value);
+                $value = $this->sanitizeRichText($value);
+                $element->text = $value;
             }
 
             $element->tstamp = time();
             $element->save();
 
-            return new JsonResponse(['saved' => true, 'id' => (int) $element->id, 'field' => $field]);
+            return new JsonResponse(['saved' => true, 'id' => (int) $element->id, 'field' => $field, 'value' => $value]);
         }
 
-        $news = class_exists(NewsModel::class) ? NewsModel::findByPk($id) : null;
+        if ($element && 'caption' === $field && 'image' === $element->type) {
+            $element->caption = StringUtil::specialchars($value);
+            $element->tstamp = time();
+            $element->save();
 
-        if (!$news || !in_array($field, ['headline', 'subheadline', 'teaser'], true)) {
-            return new JsonResponse(['error' => 'This content element cannot be edited inline.'], 404);
+            return new JsonResponse(['saved' => true, 'id' => (int) $element->id, 'field' => $field, 'value' => $value]);
         }
 
-        if (in_array($field, ['headline', 'subheadline'], true)) {
-            $news->{$field} = htmlspecialchars(mb_substr($value, 0, 255), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        } else {
-            $news->teaser = $this->paragraphs($value);
-        }
-
-        $news->tstamp = time();
-        $news->save();
-
-        return new JsonResponse(['saved' => true, 'id' => (int) $news->id, 'field' => $field]);
+        return new JsonResponse(['error' => 'This content element cannot be edited inline.'], 404);
     }
 
-    private function paragraphs(string $value): string
+    private function sanitizeRichText(string $value): string
     {
-        return implode('', array_map(
-            static fn (string $line): string => '<p>'.htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</p>',
-            preg_split('/\R+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [],
-        ));
+        $config = (new HtmlSanitizerConfig())
+            ->allowSafeElements()
+            ->allowRelativeLinks()
+            ->allowRelativeMedias()
+            ->allowAttribute('class', '*')
+            ->allowAttribute('id', '*')
+            ->withMaxInputLength(100_000);
+
+        return (new HtmlSanitizer($config))->sanitize($value);
     }
 
     public function saveLink(Request $request): JsonResponse
@@ -241,7 +270,7 @@ final class InlineContentSaveController
                         'uuid' => StringUtil::binToUuid($fileModel->uuid),
                         'name' => $fileModel->name,
                         'type' => $file->isImage ? 'image' : 'file',
-                        'url' => '/'.implode('/', array_map('rawurlencode', explode('/', $fileModel->path))),
+                        'url' => $this->publicFileUrl($request, $fileModel->path),
                     ];
                 }
             } elseif ('pageTree' === $widget && !empty($eval['multiple'])) {
@@ -301,7 +330,7 @@ final class InlineContentSaveController
                 // Contao's ACE source editor is plain code, not rich-text content.
                 'richText' => !empty($eval['rte']) && !str_contains(strtolower((string) $eval['rte']), 'ace'),
                 'dependencyGroups' => $dependencyGroups,
-                'advanced' => in_array($name, ['cssID', 'customTpl', 'size', 'imageSize'], true),
+                'advanced' => in_array($name, ['customTpl', 'size', 'imageSize'], true),
                 'columns' => $wizardColumns,
                 'selectedFiles' => $selectedFiles ?? []];
         }
@@ -551,7 +580,7 @@ final class InlineContentSaveController
             }
 
             $element->singleSRC = $fileModel->uuid;
-            $url = '/'.$relativePath;
+            $url = $this->publicFileUrl($request, $relativePath);
         } elseif ('' !== $selectedUuid) {
             $fileModel = FilesModel::findByUuid($selectedUuid);
 
@@ -560,7 +589,7 @@ final class InlineContentSaveController
             }
 
             $element->singleSRC = $fileModel->uuid;
-            $url = '/'.implode('/', array_map('rawurlencode', explode('/', $fileModel->path)));
+            $url = $this->publicFileUrl($request, $fileModel->path);
         } elseif (!$element->singleSRC || !FilesModel::findByUuid($element->singleSRC)) {
             return new JsonResponse(['error' => 'Upload an image before saving these settings.'], 422);
         }
@@ -640,7 +669,7 @@ final class InlineContentSaveController
                     'uuid' => StringUtil::binToUuid($entry->uuid),
                     'name' => $entry->name,
                     'path' => $entry->path,
-                    'url' => '/'.implode('/', array_map('rawurlencode', explode('/', $entry->path))),
+                    'url' => $this->publicFileUrl($request, $entry->path),
                 ];
             }
         }
@@ -896,6 +925,13 @@ final class InlineContentSaveController
 
 
         return new JsonResponse(['categories' => $catalog]);
+    }
+
+    private function publicFileUrl(Request $request, string $path): string
+    {
+        $path = implode('/', array_map('rawurlencode', explode('/', ltrim($path, '/'))));
+
+        return rtrim($request->getBasePath(), '/').'/'.$path;
     }
 
     private function isRegisteredContentElement(string $type): bool

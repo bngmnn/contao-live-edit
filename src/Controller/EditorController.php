@@ -29,6 +29,7 @@ final class EditorController extends AbstractController
 
         return $this->render('@ContaoLiveEdit/editor.html.twig', [
             'theme' => 'light' === ($GLOBALS['TL_CONFIG']['contaoLiveEditTheme'] ?? 'dark') ? 'light' : 'dark',
+            'basePath' => rtrim($request->getBasePath(), '/'),
         ]);
     }
 }
