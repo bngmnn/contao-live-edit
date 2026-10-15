@@ -10,14 +10,16 @@ The in-page toolbar also includes a template editor for custom templates in the 
 
 ## Install from GitHub
 
-Until the package is available through Packagist, add this repository as a Composer VCS source. To install the stable `0.2.0` release:
+Until the package is available through Packagist, add this repository as a Composer VCS source. To install the stable `0.2.1` release:
 
 ```sh
 composer config repositories.contao-live-edit vcs https://github.com/bngmnn/contao-live-edit
-composer require bngmnn/contao-live-edit:0.2.0
+composer require bngmnn/contao-live-edit:0.2.1
 vendor/bin/contao-setup
 vendor/bin/contao-console assets:install public --symlink
 ```
+
+To install with the Contao Manager's package upload, download `contao-live-edit-0.2.1-manager-upload.zip` from the GitHub release and upload it under **Packages → Upload packages**. This artifact includes the version metadata required for Manager uploads.
 
 For the previous `0.1.x` line, use `composer require bngmnn/contao-live-edit:^0.1`.
 

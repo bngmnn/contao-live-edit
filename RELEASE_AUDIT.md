@@ -1,3 +1,15 @@
+# Contao Live Edit — stable 0.2.1 release update
+
+Date: 2026-10-15
+
+## Release summary
+
+The `v0.2.1` patch release fixes inline editing of Contao text elements. Editing a text body now targets the rendered `.rte` body rather than the enclosing element, so the separately rendered headline is not copied into the saved rich text. The save path also handles the rich text element itself as the edit root.
+
+The frontend script cache key was advanced so installations load the corrected editor after updating the bundle. A Contao Manager upload ZIP is provided with the required `version` property in its embedded `composer.json`.
+
+The real authenticated install acceptance gates documented in the 0.2.0 audit remain outstanding; this release does not claim those checks were completed.
+
 # Contao Live Edit — stable 0.2.0 release audit update
 
 Date: 2026-10-15

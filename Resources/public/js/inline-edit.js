@@ -318,7 +318,8 @@
       : editable.dataset.contaoLiveEditType === 'text' && heading && editable.contains(heading) ? 'headline'
         : editable.dataset.contaoLiveEditType === 'text' ? 'text' : '';
     if (!fieldName || editable.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover')) return null;
-    const field = 'headline' === fieldName && heading ? heading : editable;
+    const field = 'headline' === fieldName && heading ? heading
+      : 'text' === fieldName ? (editable.querySelector('.rte') || editable) : editable;
     field.dataset.inlineRecord = editable.dataset.contaoLiveEditRecord;
     field.dataset.inlineField = fieldName;
     return field;
@@ -1342,7 +1343,7 @@
     const field = activeField;
     const cleanedField = field.cloneNode(true);
     cleanedField.querySelectorAll('.contao-live-edit-move-handle, .contao-live-edit-settings-handle').forEach((control) => control.remove());
-    const contentRoot = cleanedField.querySelector('.rte') || cleanedField;
+    const contentRoot = cleanedField.matches('.rte') ? cleanedField : (cleanedField.querySelector('.rte') || cleanedField);
     const plainText = contentRoot.innerText.trim();
     const richTextField = ['text', 'teaser'].includes(field.dataset.inlineField);
     const value = richTextField ? contentRoot.innerHTML.trim() : plainText;
@@ -1375,7 +1376,7 @@
         if ('' === (result.value ?? plainText)) field.remove();
         else field.textContent = result.value ?? plainText;
       } else {
-        const richText = field.querySelector('.rte') || field;
+        const richText = field.matches('.rte') ? field : (field.querySelector('.rte') || field);
         const template = document.createElement('template');
         template.innerHTML = result.value ?? value;
         if (richText === field) {
