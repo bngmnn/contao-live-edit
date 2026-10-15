@@ -10,6 +10,8 @@
   let originalMarkup = '';
   let textMode = false;
   let popover = null;
+  let popoverOpener = null;
+  let templateOpener = null;
   let popoverDirty = false;
   let pendingClick = null;
   let replayingClick = false;
@@ -115,6 +117,9 @@
     popover?.remove();
     popover = null;
     popoverDirty = false;
+    const opener = popoverOpener;
+    popoverOpener = null;
+    if (opener?.isConnected) opener.focus();
     if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     imagePreviewUrl = null;
     return true;
@@ -150,6 +155,9 @@
   const closeTemplateModal = () => {
     if (templateHasUnsavedChanges() && !window.confirm('Discard unsaved template changes?')) return;
     templateModal?.remove();
+    const opener = templateOpener;
+    templateOpener = null;
+    if (opener?.isConnected) opener.focus();
   };
   const loadTemplateAce = async () => {
     if (templateAceAssetsLoaded) return;
@@ -168,17 +176,20 @@
     templateAceAssetsLoaded = true;
   };
   const openTemplateEditor = async () => {
+    const opener = document.activeElement;
     if (activeField && !finish(true)) return;
     if (!closePopover()) return;
+    templateOpener = opener;
     if (!templateModal) {
       templateModal = document.createElement('div');
       templateModal.className = 'contao-live-edit-template-modal';
-      templateModal.innerHTML = '<section class="contao-live-edit-template-card" role="dialog" aria-modal="true" aria-labelledby="contao-live-edit-template-title"><header><div><span class="contao-live-edit-modal-kicker">PROJECT TEMPLATES</span><h2 id="contao-live-edit-template-title">Edit a Contao template</h2><p>Changes are written to the selected file in the project templates folder. Each save keeps a previous version you can restore.</p></div><button type="button" data-template-close aria-label="Close">×</button></header><div class="contao-live-edit-template-layout"><aside><label class="contao-live-edit-template-search">Find a template<input type="search" placeholder="Search templates"></label><nav data-template-list aria-label="Project templates"><p class="contao-live-edit-library-message">Loading templates…</p></nav></aside><main><div class="contao-live-edit-template-file" data-template-path>Select a template to begin</div><div class="contao-live-edit-template-ace" data-template-ace hidden></div><textarea data-template-source spellcheck="false" aria-label="Template source" disabled></textarea></main></div><footer><span data-template-status aria-live="polite">Choose a template from the list.</span><button type="button" data-template-restore disabled>Restore previous version</button><button type="button" data-template-close>Close</button><button type="button" data-template-save disabled>Save template</button></footer></section>';
+      templateModal.innerHTML = '<section class="contao-live-edit-template-card" role="dialog" aria-modal="true" aria-labelledby="contao-live-edit-template-title" tabindex="-1"><header><div><span class="contao-live-edit-modal-kicker">PROJECT TEMPLATES</span><h2 id="contao-live-edit-template-title">Edit a Contao template</h2><p>Changes are written to the selected file in the project templates folder. Each save keeps a previous version you can restore.</p></div><button type="button" data-template-close aria-label="Close">×</button></header><div class="contao-live-edit-template-layout"><aside><label class="contao-live-edit-template-search">Find a template<input type="search" placeholder="Search templates"></label><nav data-template-list aria-label="Project templates"><p class="contao-live-edit-library-message">Loading templates…</p></nav></aside><main><div class="contao-live-edit-template-file" data-template-path>Select a template to begin</div><div class="contao-live-edit-template-ace" data-template-ace hidden></div><textarea data-template-source spellcheck="false" aria-label="Template source" disabled></textarea></main></div><footer><span data-template-status aria-live="polite">Choose a template from the list.</span><button type="button" data-template-restore disabled>Restore previous version</button><button type="button" data-template-close>Close</button><button type="button" data-template-save disabled>Save template</button></footer></section>';
       document.body.append(templateModal);
       templateModal.querySelectorAll('[data-template-close]').forEach((button) => button.addEventListener('click', closeTemplateModal));
       templateModal.addEventListener('click', (event) => { if (event.target === templateModal) closeTemplateModal(); });
     }
     if (!templateModal.isConnected) document.body.append(templateModal);
+    templateModal.querySelector('[data-template-close]')?.focus();
     const list = templateModal.querySelector('[data-template-list]');
     const search = templateModal.querySelector('.contao-live-edit-template-search input');
     const editor = templateModal.querySelector('[data-template-source]');
@@ -436,11 +447,15 @@
   }, true);
 
   const openLinkEditor = (link) => {
+    const opener = document.activeElement;
     if (activeField && !finish(true)) return;
     if (!closePopover()) return;
+    popoverOpener = opener;
     popover = document.createElement('form');
     popover.className = 'contao-live-edit-edit-popover contao-live-edit-link-popover';
     popover.setAttribute('role', 'dialog');
+    popover.setAttribute('aria-modal', 'true');
+    popover.setAttribute('tabindex', '-1');
     popover.setAttribute('aria-label', 'Edit link');
     popover.innerHTML = '<div class="contao-live-edit-popover-heading">Edit link</div>' +
       '<label>Text<input name="label" maxlength="255" required></label>' +
@@ -505,8 +520,10 @@
   };
 
   const openImageEditor = (image) => {
+    const opener = document.activeElement;
     if (activeField && !finish(true)) return;
     if (!closePopover()) return;
+    popoverOpener = opener;
     const imageRecord = image.closest('[data-contao-live-edit-type="image"]');
 
     if (!imageRecord?.dataset.contaoLiveEditRecord) {
@@ -519,6 +536,7 @@
     popover.className = 'contao-live-edit-edit-popover contao-live-edit-image-modal';
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-modal', 'true');
+    popover.setAttribute('tabindex', '-1');
     popover.setAttribute('aria-label', 'Edit image');
     popover.innerHTML = '<div class="contao-live-edit-image-modal-card">' +
       '<header class="contao-live-edit-image-modal-header"><div><span class="contao-live-edit-modal-kicker">IMAGE</span><h2>Replace or edit image</h2><p>Upload a new image and update its key display settings.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header>' +
@@ -729,14 +747,17 @@
   };
 
   const openElementEditor = async (record) => {
+    const opener = document.activeElement;
     if (activeField && !finish(true)) return;
     const id = record?.dataset.contaoLiveEditRecord;
     if (!id) return;
     if (!closePopover()) return;
+    popoverOpener = opener;
     popover = document.createElement('form');
     popover.className = 'contao-live-edit-edit-popover contao-live-edit-element-modal';
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-modal', 'true');
+    popover.setAttribute('tabindex', '-1');
     popover.setAttribute('aria-label', 'Edit content element');
     popover.innerHTML = '<div class="contao-live-edit-element-modal-card"><header class="contao-live-edit-element-header"><div><span class="contao-live-edit-modal-kicker">QUICK EDIT</span><h2>Element settings</h2><p>Edit the fields that matter here. Timing and visibility are just below.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header><div class="contao-live-edit-element-fields" data-element-fields><div class="contao-live-edit-library-message">Loading settings…</div></div><footer class="contao-live-edit-image-modal-footer"><div class="contao-live-edit-element-quick-actions"><button type="button" class="contao-live-edit-reorder-control" data-action="move-up" aria-label="Move element up" title="Move element up">↑ Move up</button><button type="button" class="contao-live-edit-reorder-control" data-action="move-down" aria-label="Move element down" title="Move element down">↓ Move down</button><button type="button" class="contao-live-edit-delete-element" data-action="delete" aria-label="Remove element" title="Remove element"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12m-10 0 .7 10.2h6.6L14 6M8 6V4h4v2m-3 3v4m2-4v4"/></svg></button><button type="button" class="contao-live-edit-visibility-toggle" data-action="visibility" aria-pressed="false" aria-label="Hide element" title="Hide element"></button></div><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save changes</button></footer></div>';
     document.body.append(popover);
@@ -1260,6 +1281,28 @@
   }, true);
 
   document.addEventListener('keydown', (event) => {
+    const dialog = document.querySelector('[role="dialog"][aria-modal="true"]');
+    if (dialog && event.key === 'Tab') {
+      const focusable = [...dialog.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+        .filter((element) => element.getClientRects().length);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first) {
+        event.preventDefault();
+        dialog.focus();
+      } else if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    if (templateModal?.isConnected && event.key === 'Escape') {
+      event.preventDefault();
+      closeTemplateModal();
+      return;
+    }
     if (popover && event.key === 'Escape') {
       event.preventDefault();
       closePopover(true);

@@ -10,16 +10,16 @@ The in-page toolbar also includes a template editor for custom templates in the 
 
 ## Install from GitHub
 
-Until the package is available through Packagist, add this repository as a Composer VCS source. To try the `0.2.0-rc1` release candidate:
+Until the package is available through Packagist, add this repository as a Composer VCS source. To install the stable `0.2.0` release:
 
 ```sh
 composer config repositories.contao-live-edit vcs https://github.com/bngmnn/contao-live-edit
-composer require bngmnn/contao-live-edit:0.2.0-rc1@RC
+composer require bngmnn/contao-live-edit:0.2.0
 vendor/bin/contao-setup
 vendor/bin/contao-console assets:install public --symlink
 ```
 
-For the latest stable `0.1.x` release, use `composer require bngmnn/contao-live-edit:^0.1` instead.
+For the previous `0.1.x` line, use `composer require bngmnn/contao-live-edit:^0.1`.
 
 Then sign in as a Contao administrator and visit `/contao-live-edit`. The frontend toolbar is injected automatically on pages rendered while that administrator session is active. RockSolid Frontend Helper is not required. The `contao/news-bundle` is optional; when installed, the inline editor also handles news headline, subheadline, and teaser fields.
 
