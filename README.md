@@ -8,13 +8,12 @@ Text fields configured with Contao's `rte` option use Contao's bundled HugeRTE e
 
 The in-page toolbar also includes a template editor for custom templates in the project `templates/` directory. It lists Twig (`.html.twig`) and legacy Contao (`.html5`/`.xhtml`) templates, opens the selected source in a large code editor, validates syntax before saving, and keeps a previous version that can be restored from the editor. Saving invalidates Contao's frontend Twig template cache so the updated markup is picked up on the next page load.
 
-## Install from GitHub
+## Installation
 
-Until the package is available through Packagist, add this repository as a Composer VCS source. To install the stable `0.2.1` release:
+Install the stable `0.2` release with Composer through Packagist:
 
 ```sh
-composer config repositories.contao-live-edit vcs https://github.com/bngmnn/contao-live-edit
-composer require bngmnn/contao-live-edit:0.2.1
+composer require bngmnn/contao-live-edit:^0.2
 vendor/bin/contao-setup
 vendor/bin/contao-console assets:install public --symlink
 ```
@@ -41,7 +40,7 @@ Then sign in as a Contao administrator and visit `/contao-live-edit`. The fronte
 - Template source is syntax-checked before it replaces the saved file. The editor keeps one previous version beside each edited template as `.contao-live-edit.bak`; use Restore previous version to swap between the current and previous source.
 - The editor and its API/assets support Contao installations mounted beneath a URL prefix.
 - Extension widgets that Contao exposes through a DCA palette are included in the generated settings editor. Highly specialized widgets use a structured fallback editor, and extension-specific callbacks that only run in the back end may still need their native Contao form.
-- Composer VCS installation is supported. Once the package is listed on Packagist, the extra VCS repository entry is no longer needed.
+- Composer installation through Packagist is supported. Direct VCS installation from GitHub is also supported when needed.
 
 ## License
 
