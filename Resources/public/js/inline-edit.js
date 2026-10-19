@@ -1041,6 +1041,11 @@
 
     try {
       const response = await fetch(appUrl(`/contao-live-edit/element-fields/${encodeURIComponent(id)}`), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const contentType = response.headers.get('content-type') || '';
+      if (response.redirected || !contentType.includes('application/json')) {
+        if (response.redirected) throw new Error('Your Contao session may have expired. Sign in again, reload the page, and reopen Element Settings.');
+        throw new Error(`Element settings could not be loaded (server returned ${response.status}, not JSON). Reload the page and try again; if it continues, check the Contao error log.`);
+      }
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not load element settings.');
       const editorMode = result.editorMode || 'generic';
