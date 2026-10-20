@@ -1,6 +1,6 @@
 /* Normalize Live Edit chrome before component styles so Contao/theme rules do not leak into it. */
-.contao-live-edit-inline-bar,.contao-live-edit-edit-popover,.contao-live-edit-image-modal,.contao-live-edit-element-modal,.contao-live-edit-template-modal,.contao-live-edit-action-bar,.contao-live-edit-move-handle,.contao-live-edit-settings-handle{box-sizing:border-box;margin:0}
-.contao-live-edit-inline-bar *,.contao-live-edit-edit-popover *,.contao-live-edit-image-modal *,.contao-live-edit-element-modal *,.contao-live-edit-template-modal *,.contao-live-edit-action-bar *{box-sizing:border-box;margin-block-start:0}
+.contao-live-edit-inline-bar,.contao-live-edit-edit-popover,.contao-live-edit-image-modal,.contao-live-edit-element-modal,.contao-live-edit-template-modal,.contao-live-edit-discard-dialog,.contao-live-edit-action-bar,.contao-live-edit-move-handle,.contao-live-edit-settings-handle{box-sizing:border-box;margin:0}
+.contao-live-edit-inline-bar *,.contao-live-edit-edit-popover *,.contao-live-edit-image-modal *,.contao-live-edit-element-modal *,.contao-live-edit-template-modal *,.contao-live-edit-discard-dialog *,.contao-live-edit-action-bar *{box-sizing:border-box;margin-block-start:0}
 /* Contao Live Edit frontend controls */
 .contao-live-edit-preview-hidden{display:var(--contao-live-edit-reveal-display,block)!important;visibility:visible!important;opacity:1!important;clip:auto!important;clip-path:none!important}
 .contao-live-edit-preview-hidden>:not(.contao-live-edit-action-bar):not(.contao-live-edit-move-handle):not(.contao-live-edit-settings-handle):not(.contao-live-edit-html-handle):not(.contao-live-edit-article-toolbar){opacity:.38!important;transition:opacity .18s ease}
@@ -11,6 +11,7 @@ body.contao-live-edit-text-editing footer:hover>.contao-live-edit-page-template-
 @media(hover:none){body.contao-live-edit-text-editing footer>.contao-live-edit-page-template-handle{opacity:1}}
 :root{--ink:#171717;--muted:#666;--paper:#f5f5f5;--white:#fff;--green:#555;--green-dark:#171717;--lime:#f4f4f4;--clay:#222;--line:rgba(0,0,0,.14);--serif:Georgia,'Times New Roman',serif;--sans:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 .contao-live-edit-edit-popover{position:fixed;z-index:1000003;width:min(360px,calc(100vw - 24px));padding:17px;border:1px solid rgba(38,51,43,.14);border-radius:12px;background:#fffefa;color:#293d32;box-shadow:0 14px 44px rgba(22,35,26,.24);font:500 12px/1.45 var(--sans)}.contao-live-edit-popover-heading{margin-bottom:12px;font-family:var(--serif);font-size:21px;line-height:1.2}.contao-live-edit-edit-popover label{display:block;margin:0 0 9px;color:#667169;font-size:10px;font-weight:700;letter-spacing:.4px}.contao-live-edit-edit-popover input:not([type=checkbox]){display:block;width:100%;height:36px;margin-top:4px;padding:7px 9px;border:1px solid #d9ded4;border-radius:5px;background:white;color:#293d32;font:500 12px var(--sans)}.contao-live-edit-edit-popover input:focus{outline:2px solid #9da985;outline-offset:1px}.contao-live-edit-popover-check{display:flex!important;align-items:center;gap:8px;margin:5px 0 13px!important;color:#293d32!important;font-size:11px!important;letter-spacing:0!important}.contao-live-edit-popover-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;margin-top:12px}.contao-live-edit-popover-actions span{flex:1}.contao-live-edit-popover-actions button{border:0;border-radius:999px;padding:9px 12px;background:#e9ece3;color:#293d32;font:600 11px var(--sans);cursor:pointer}.contao-live-edit-popover-actions button[type=submit],.contao-live-edit-popover-actions button[data-action=replace]{background:#d8e48f}.contao-live-edit-popover-actions button:disabled{opacity:.6;cursor:wait}.contao-live-edit-popover-status{color:#536b56;font-size:10px}.contao-live-edit-popover-status.is-error{color:#a33d2d}.contao-live-edit-image-popover p{margin:0;color:#667169;font-size:12px;line-height:1.6}
+.contao-live-edit-discard-dialog{position:fixed;inset:0;width:min(420px,calc(100vw - 32px));max-width:none;padding:0;border:1px solid rgba(23,23,23,.18);border-radius:18px;background:#f5f4ef;color:#171717;box-shadow:0 24px 72px rgba(0,0,0,.3);font:500 14px/1.5 var(--sans)}.contao-live-edit-discard-dialog::backdrop{background:rgba(17,20,18,.54);backdrop-filter:blur(4px)}.contao-live-edit-discard-dialog section{padding:24px}.contao-live-edit-discard-dialog .contao-live-edit-modal-kicker{display:block;margin-bottom:8px;color:#70766d;font-size:9px;letter-spacing:1.5px}.contao-live-edit-discard-dialog h2{margin:0 0 7px;color:#171717;font:600 20px/1.2 var(--sans)}.contao-live-edit-discard-dialog p{margin:0;color:#5b5d57;font-size:13px}.contao-live-edit-discard-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.contao-live-edit-discard-dialog button{min-height:38px;padding:8px 14px;border:1px solid rgba(23,23,23,.18);border-radius:999px;background:#fffefa;color:#171717;font:650 12px var(--sans);cursor:pointer}.contao-live-edit-discard-dialog button[data-discard-confirm]{border-color:#a33d2d;background:#a33d2d;color:#fff}.contao-live-edit-discard-dialog button:focus-visible{outline:2px solid #405b49;outline-offset:2px}
 .contao-live-edit-inline-bar{display:none;position:fixed;z-index:1000002;left:50%;bottom:18px;translate:-50% 0;align-items:center;gap:8px;min-height:52px;padding:8px 10px 8px 17px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:#293d32;color:#fff;box-shadow:0 9px 35px rgba(22,35,26,.25);font:500 12px/1.3 var(--sans)}.contao-live-edit-inline-bar.is-ready{display:flex}.contao-live-edit-inline-bar.is-active{border-color:rgba(216,228,143,.7)}.contao-live-edit-inline-hint{color:#dbe4d4}.contao-live-edit-inline-status{min-width:0;color:var(--lime)}.contao-live-edit-inline-status.is-error{color:#ffb29b}.contao-live-edit-inline-bar button{border:0;border-radius:999px;padding:9px 14px;background:transparent;color:#e4e9e0;font:600 12px var(--sans);cursor:pointer}.contao-live-edit-inline-bar button[data-action=toggle],.contao-live-edit-inline-bar button[data-action=save]{background:var(--lime);color:var(--green-dark)}.contao-live-edit-inline-bar button[data-action=cancel],.contao-live-edit-inline-bar button[data-action=save]{display:none}.contao-live-edit-inline-bar.is-editing button[data-action=toggle]{display:none}.contao-live-edit-inline-bar.is-editing button[data-action=cancel],.contao-live-edit-inline-bar.is-editing button[data-action=save]{display:inline-flex}.contao-live-edit-inline-bar button:disabled{opacity:.6;cursor:wait}body.contao-live-edit-text-editing [data-inline-record][data-inline-field]{border-radius:2px}body.contao-live-edit-text-editing [data-inline-record][data-inline-field]:hover{outline:1px dashed rgba(64,91,73,.55);outline-offset:3px;cursor:text}[data-inline-record][data-inline-field].is-inline-editing{outline:2px solid var(--clay)!important;outline-offset:4px;background:rgba(255,254,250,.7);cursor:text}
 .contao-live-edit-image-modal{position:fixed;z-index:1000010;inset:0;width:auto;height:auto;padding:24px;display:grid;place-items:center;background:rgba(26,39,31,.48);backdrop-filter:blur(5px);color:var(--ink);font:500 13px/1.45 var(--sans)}.contao-live-edit-image-modal-card{width:min(760px,100%);max-height:min(90vh,900px);overflow:auto;border:1px solid rgba(38,51,43,.12);border-radius:18px;background:#fffefa;box-shadow:0 28px 90px rgba(15,29,19,.3)}.contao-live-edit-image-modal-header{display:flex;justify-content:space-between;gap:25px;padding:27px 30px 22px;border-bottom:1px solid var(--line)}.contao-live-edit-modal-kicker{font-size:9px;letter-spacing:2px;font-weight:800;color:#809067}.contao-live-edit-image-modal-header h2{margin:4px 0 5px;font:400 29px/1.15 var(--serif);color:var(--ink)}.contao-live-edit-image-modal-header p{margin:0;color:var(--muted);font-size:12px}.contao-live-edit-modal-close{width:34px;height:34px;border:0;border-radius:50%;background:#eef0e9;color:var(--green-dark);font:400 23px/1 var(--sans);cursor:pointer}.contao-live-edit-image-modal-content{display:grid;grid-template-columns:190px 1fr;gap:14px 20px;padding:22px 30px 27px}.contao-live-edit-image-preview{grid-row:span 2;align-self:start;overflow:hidden;border:1px solid var(--line);border-radius:10px;background:#f0f1eb;aspect-ratio:4/3}.contao-live-edit-image-preview img{display:block;width:100%;height:100%;object-fit:cover}.contao-live-edit-image-dropzone{min-height:136px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:15px;border:1px dashed #abb49f;border-radius:11px;background:#f8f9f5;text-align:center;cursor:pointer;transition:.16s ease}.contao-live-edit-image-dropzone.is-dragging,.contao-live-edit-image-dropzone.has-file{border-color:var(--green);background:#eef2e8}.contao-live-edit-image-dropzone strong{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--green-dark)}.contao-live-edit-image-dropzone>span:not(.contao-live-edit-upload-icon){font-size:10px;color:var(--muted)}.contao-live-edit-upload-icon{width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:#e5eadb;color:var(--green);font-size:17px}.contao-live-edit-image-dropzone button{margin-top:4px;padding:7px 11px;border:1px solid #d7ddd0;border-radius:999px;background:#fffefa;color:var(--green-dark);font:700 10px var(--sans);cursor:pointer}.contao-live-edit-image-fields{display:grid;grid-template-columns:1fr 1fr;gap:11px 13px}.contao-live-edit-image-fields label{display:block;color:#667169;font-size:10px;font-weight:700;letter-spacing:.4px}.contao-live-edit-image-fields input,.contao-live-edit-image-fields textarea{display:block;width:100%;margin-top:5px;padding:9px 10px;border:1px solid #d9ded4;border-radius:7px;background:#fff;color:var(--green-dark);font:500 12px var(--sans);resize:vertical}.contao-live-edit-image-fields input{height:36px}.contao-live-edit-image-fields input:focus,.contao-live-edit-image-fields textarea:focus{outline:2px solid #9da985;outline-offset:1px}.contao-live-edit-image-fields .contao-live-edit-caption-field{grid-column:1/-1}.contao-live-edit-image-modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:16px 30px 21px;border-top:1px solid var(--line)}.contao-live-edit-image-modal-footer .contao-live-edit-popover-status{margin-right:auto}.contao-live-edit-image-modal-footer button{border:0;border-radius:999px;padding:10px 15px;background:#e9ece3;color:#293d32;font:700 11px var(--sans);cursor:pointer}.contao-live-edit-image-modal-footer button[type=submit]{background:var(--green);color:white}.contao-live-edit-image-modal-footer button:disabled{opacity:.6;cursor:wait}@media(max-width:640px){.contao-live-edit-image-modal{padding:12px}.contao-live-edit-image-modal-card{max-height:94vh;border-radius:14px}.contao-live-edit-image-modal-header{padding:21px 20px 16px}.contao-live-edit-image-modal-header h2{font-size:25px}.contao-live-edit-image-modal-content{grid-template-columns:1fr;padding:17px 20px 21px}.contao-live-edit-image-preview{grid-row:auto;width:160px;aspect-ratio:4/3}.contao-live-edit-image-dropzone{min-height:122px}.contao-live-edit-image-fields{grid-template-columns:1fr}.contao-live-edit-image-fields .contao-live-edit-caption-field{grid-column:auto}.contao-live-edit-image-modal-footer{padding:14px 20px 18px}}
 /* Keep the native file input visually hidden while preserving the accessible drop target. */
@@ -312,9 +313,10 @@ html[data-contao-live-edit-theme="dark"] .contao-live-edit-action-bar>.contao-li
 .contao-live-edit-context-article-popout .contao-live-edit-context-empty{margin:0!important;padding:7px 9px;color:rgba(255,255,255,.62);font:400 12px/1.4 var(--sans)}
 @media(prefers-reduced-motion:reduce){.contao-live-edit-context-article-popout{transition:none}}
 
-/* Live-edit mode uses the wand from the activation control as its pointer. */
-body.contao-live-edit-text-editing{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='%23171717' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72'/%3E%3Cpath d='m14 7 3 3M5 6v4M19 14v4M10 2v2M7 8H3m18 8h-4M11 3H9'/%3E%3C/g%3E%3C/svg%3E") 5 29, crosshair}
-body.contao-live-edit-text-editing [data-inline-record][data-inline-field]:not(.is-inline-editing):hover,body.contao-live-edit-text-editing [data-contao-live-edit-record][data-contao-live-edit-type]:not(.is-inline-editing):hover{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='%23171717' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72'/%3E%3Cpath d='m14 7 3 3M5 6v4M19 14v4M10 2v2M7 8H3m18 8h-4M11 3H9'/%3E%3C/g%3E%3C/svg%3E") 5 29, crosshair}
+/* Live-edit mode uses a contoured wand cursor with no surrounding badge. */
+:root{--contao-live-edit-wand-cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cg transform='translate(4 4) scale(.66)' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23fffefa' stroke-width='4.4'%3E%3Cpath d='m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72'/%3E%3Cpath d='m14 7 3 3M5 6v4M19 14v4M10 2v2M7 8H3m18 8h-4M11 3H9'/%3E%3C/g%3E%3Cg stroke='%23171717' stroke-width='2.1'%3E%3Cpath d='m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72'/%3E%3Cpath d='m14 7 3 3M5 6v4M19 14v4M10 2v2M7 8H3m18 8h-4M11 3H9'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") 18 5,crosshair}
+body.contao-live-edit-text-editing{cursor:var(--contao-live-edit-wand-cursor)}
+body.contao-live-edit-text-editing [data-inline-record][data-inline-field]:not(.is-inline-editing):hover,body.contao-live-edit-text-editing [data-contao-live-edit-record][data-contao-live-edit-type]:not(.is-inline-editing):hover{cursor:var(--contao-live-edit-wand-cursor)}
 body.contao-live-edit-text-editing .contao-live-edit-action-bar,body.contao-live-edit-text-editing .contao-live-edit-action-bar *,body.contao-live-edit-text-editing .contao-live-edit-inline-bar,body.contao-live-edit-text-editing .contao-live-edit-inline-bar *{cursor:pointer}
 .contao-live-edit-inline-bar.is-active{isolation:isolate;overflow:visible}
 body.contao-live-edit-text-editing .contao-live-edit-article-toolbar{z-index:1000001}
@@ -437,7 +439,7 @@ body.contao-live-edit-text-editing .contao-live-edit-article:hover>.contao-live-
 
 /* Keep the primary action and page-tools button together as the bar expands. */
 .contao-live-edit-inline-bar{left:auto;right:24px;translate:0 0}
-.contao-live-edit-inline-actions{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;gap:6px}
+.contao-live-edit-inline-actions{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-start;gap:6px}
 .contao-live-edit-inline-bar.is-active,
 .contao-live-edit-inline-bar.is-editing{padding:8px 12px 8px 18px}
 .contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing){right:24px;left:auto;min-width:0!important}
@@ -465,7 +467,7 @@ body.contao-live-edit-text-editing .contao-live-edit-article:hover>.contao-live-
 .contao-live-edit-inline-bar.is-transitioning>*{flex-shrink:0!important}
 .contao-live-edit-inline-bar.is-transitioning>.contao-live-edit-inline-hint,
 .contao-live-edit-inline-bar.is-transitioning>.contao-live-edit-inline-status{opacity:0!important;white-space:nowrap}
-.contao-live-edit-inline-actions{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;gap:6px}
+.contao-live-edit-inline-actions{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-start;gap:6px}
 .contao-live-edit-inline-actions>[data-context-toggle]{transition:opacity .16s ease}
 .contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing){
   width:min(600px,calc(100vw - 24px));
@@ -487,11 +489,10 @@ body.contao-live-edit-text-editing .contao-live-edit-article:hover>.contao-live-
 .contao-live-edit-inline-bar.is-transitioning .contao-live-edit-inline-actions>[data-action="toggle"]{
   display:grid!important;
   place-items:center!important;
-  flex:0 0 42px;
-  width:42px!important;
-  min-width:42px!important;
-  height:42px;
-  min-height:42px;
+  flex:0 0 40px;
+  width:auto;
+  min-width:0;
+  aspect-ratio:1;
   padding:0!important;
   gap:0;
 }
@@ -520,9 +521,10 @@ body.contao-live-edit-text-editing .contao-live-edit-article:hover>.contao-live-
   transition:flex-basis .2s cubic-bezier(.22,.8,.24,1),width .2s cubic-bezier(.22,.8,.24,1),min-width .2s cubic-bezier(.22,.8,.24,1);
 }
 .contao-live-edit-inline-bar.is-transitioning .contao-live-edit-inline-actions>[data-action="toggle"]{
-  flex-basis:42px!important;
-  width:42px!important;
-  min-width:42px!important;
+  flex-basis:40px!important;
+  width:auto!important;
+  min-width:0!important;
+  aspect-ratio:1;
   padding:0!important;
 }
 .contao-live-edit-inline-bar.is-transitioning .contao-live-edit-inline-actions>[data-context-toggle]{visibility:hidden!important;opacity:0!important}
@@ -530,7 +532,7 @@ body.contao-live-edit-text-editing .contao-live-edit-article:hover>.contao-live-
   .contao-live-edit-inline-bar{right:8px;width:calc(100vw - 16px)}
   .contao-live-edit-inline-bar.is-active,
   .contao-live-edit-inline-bar.is-editing{max-width:calc(100vw - 16px)}
-  .contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing){right:8px;max-width:60px}
+  .contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing){right:8px;max-width:48px}
 }
 @media(prefers-reduced-motion:reduce){
   .contao-live-edit-inline-bar.is-transitioning{transition:none!important}
@@ -540,3 +542,127 @@ body.contao-live-edit-text-editing .contao-live-edit-article:hover>.contao-live-
   .contao-live-edit-inline-bar.is-editing>.contao-live-edit-inline-hint,
   .contao-live-edit-inline-actions>[data-context-toggle]{transition:none}
 }
+
+/* In the active state, show a quiet status and a small control to leave it. */
+.contao-live-edit-inline-live-indicator{display:none;align-items:center;gap:7px;color:#fff;font-size:12px;font-weight:600;white-space:nowrap}
+.contao-live-edit-inline-live-indicator svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.contao-live-edit-inline-bar.is-active .contao-live-edit-inline-live-indicator,
+.contao-live-edit-inline-bar.is-editing .contao-live-edit-inline-live-indicator{display:inline-flex}
+.contao-live-edit-inline-bar.is-active .contao-live-edit-inline-actions>[data-action="toggle"],
+.contao-live-edit-inline-bar.is-editing .contao-live-edit-inline-actions>[data-action="toggle"]{display:grid!important;place-items:center;flex:0 0 38px;width:38px!important;min-width:38px!important;height:38px;min-height:38px;padding:0!important;border:1px solid rgba(255,255,255,.34);border-radius:50%;background:transparent!important;color:#fff!important;box-shadow:none!important}
+.contao-live-edit-inline-bar .contao-live-edit-inline-actions>[data-action="toggle"] svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.contao-live-edit-inline-bar .contao-live-edit-inline-actions>[data-action="toggle"] [data-live-edit-pointer]{display:none}
+.contao-live-edit-inline-bar.is-active .contao-live-edit-inline-actions>[data-action="toggle"] [data-live-edit-wand],
+.contao-live-edit-inline-bar.is-editing .contao-live-edit-inline-actions>[data-action="toggle"] [data-live-edit-wand]{display:none}
+.contao-live-edit-inline-bar.is-active .contao-live-edit-inline-actions>[data-action="toggle"] [data-live-edit-pointer],
+.contao-live-edit-inline-bar.is-editing .contao-live-edit-inline-actions>[data-action="toggle"] [data-live-edit-pointer]{display:block}
+.contao-live-edit-context-help{position:relative;min-width:0;padding:0}
+.contao-live-edit-context-help>[data-context-help-toggle]{display:flex;align-items:center;justify-content:space-between;width:100%;padding:9px 11px;border:0!important;border-radius:11px;background:transparent!important;color:inherit;text-align:left;font:inherit;box-shadow:none!important;cursor:pointer!important}
+.contao-live-edit-context-help>[data-context-help-toggle]:hover,.contao-live-edit-context-help.is-open>[data-context-help-toggle]{background:rgba(255,255,255,.12)!important}
+.contao-live-edit-context-help>[data-context-help-toggle]>span:last-child{color:rgba(255,255,255,.58);font-size:19px;line-height:1}
+.contao-live-edit-context-help-popover[hidden]{display:none!important}
+.contao-live-edit-context-help-popover{z-index:1000006;max-height:min(70vh,520px);overflow:auto;padding:16px;border:1px solid rgba(255,255,255,.55);border-radius:16px;background:rgba(28,29,28,.97);color:#f5f5f2;box-shadow:0 18px 50px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.2);backdrop-filter:blur(22px) saturate(1.25);-webkit-backdrop-filter:blur(22px) saturate(1.25);font:400 12px/1.45 var(--sans)}
+.contao-live-edit-context-help-popover h2,.contao-live-edit-context-help-popover h3{margin:0 0 9px;color:inherit;font:600 13px/1.3 var(--sans)}
+.contao-live-edit-context-help-popover h3{margin-top:17px}
+.contao-live-edit-context-help-popover ul{display:grid;gap:7px;margin:0;padding-left:17px;color:rgba(255,255,255,.78)}
+.contao-live-edit-context-help-popover dl{display:grid;gap:9px;margin:0}
+.contao-live-edit-context-help-popover dl>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.contao-live-edit-context-help-popover dt{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.contao-live-edit-context-help-popover dd{margin:0;color:rgba(255,255,255,.7);text-align:right}
+.contao-live-edit-context-help-popover kbd{padding:2px 5px;border:1px solid rgba(255,255,255,.22);border-radius:5px;background:rgba(255,255,255,.1);color:inherit;font:500 10px/1.2 var(--sans)}
+@media(prefers-reduced-transparency:reduce){.contao-live-edit-context-help-popover{backdrop-filter:none;-webkit-backdrop-filter:none;background:#202120}}
+
+/* Keep the active toolbar compact and order its status before its controls. */
+.contao-live-edit-inline-bar.is-active,
+.contao-live-edit-inline-bar.is-editing{width:fit-content!important;max-width:fit-content!important;justify-content:flex-start;gap:10px;padding:8px 10px 8px 14px}
+.contao-live-edit-inline-bar.is-transitioning.is-active,
+.contao-live-edit-inline-bar.is-transitioning.is-editing{max-width:min(600px,calc(100vw - 24px))!important}
+.contao-live-edit-inline-bar.is-active>.contao-live-edit-inline-live-indicator,
+.contao-live-edit-inline-bar.is-editing>.contao-live-edit-inline-live-indicator{order:1;opacity:1;transition:opacity .16s ease}
+.contao-live-edit-inline-bar.is-active>.contao-live-edit-inline-status,
+.contao-live-edit-inline-bar.is-editing>.contao-live-edit-inline-status{order:0}
+.contao-live-edit-inline-actions{order:2;gap:4px}
+.contao-live-edit-inline-actions>[data-context-toggle]{order:0}
+.contao-live-edit-inline-actions>[data-action="toggle"]{order:1}
+.contao-live-edit-inline-bar.is-active>[data-action="cancel"],
+.contao-live-edit-inline-bar.is-active>[data-action="save"],
+.contao-live-edit-inline-bar.is-editing>[data-action="cancel"],
+.contao-live-edit-inline-bar.is-editing>[data-action="save"]{order:3}
+.contao-live-edit-inline-bar.is-transitioning>.contao-live-edit-inline-live-indicator{opacity:0!important;white-space:nowrap}
+@media(max-width:740px){.contao-live-edit-inline-bar.is-active,.contao-live-edit-inline-bar.is-editing{max-width:fit-content!important;gap:7px;padding:7px 8px 7px 11px}.contao-live-edit-inline-bar.is-transitioning.is-active,.contao-live-edit-inline-bar.is-transitioning.is-editing{max-width:calc(100vw - 16px)!important}}
+
+/* Center the discard prompt and let the page show through its glass surface. */
+.contao-live-edit-discard-dialog{
+  position:fixed;
+  inset:auto;
+  top:50%;
+  left:50%;
+  width:min(460px,calc(100vw - 32px));
+  max-width:none;
+  margin:0;
+  transform:translate(-50%,-50%);
+  border:1px solid rgba(255,255,255,.72);
+  border-radius:22px;
+  background:linear-gradient(145deg,rgba(255,255,255,.72),rgba(244,244,239,.54));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.92),0 28px 90px rgba(0,0,0,.28);
+  backdrop-filter:blur(28px) saturate(1.5);
+  -webkit-backdrop-filter:blur(28px) saturate(1.5);
+}
+.contao-live-edit-discard-dialog::backdrop{background:rgba(17,20,18,.38);backdrop-filter:blur(10px) saturate(1.12);-webkit-backdrop-filter:blur(10px) saturate(1.12)}
+.contao-live-edit-discard-dialog section{padding:26px}
+.contao-live-edit-discard-dialog footer{margin-top:22px}
+.contao-live-edit-discard-dialog button[data-discard-confirm]{border-color:rgba(163,61,45,.88);background:linear-gradient(145deg,rgba(178,69,51,.94),rgba(145,48,35,.9));box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 5px 14px rgba(100,35,25,.16)}
+@media(prefers-reduced-transparency:reduce){.contao-live-edit-discard-dialog{background:#f5f4ef;backdrop-filter:none;-webkit-backdrop-filter:none}.contao-live-edit-discard-dialog::backdrop{backdrop-filter:none;-webkit-backdrop-filter:none}}
+
+/* Keep the collapsed wand control compact while the active toolbar remains unchanged. */
+.contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing)::before,
+.contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing)::after{display:none!important;animation:none!important}
+.contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing){
+  width:min(600px,calc(100vw - 24px));
+  min-width:0;
+  max-width:48px;
+  height:48px;
+  min-height:48px;
+  max-height:48px;
+  padding:4px;
+  border-radius:50%;
+  justify-content:center;
+  border-color:transparent;
+  background:transparent;
+  box-shadow:none;
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
+.contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing) .contao-live-edit-inline-actions{
+  flex:0 0 40px;
+  width:auto;
+  min-width:0;
+  aspect-ratio:1;
+  justify-content:flex-end;
+}
+.contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing) .contao-live-edit-inline-actions>[data-action="toggle"]{
+  flex:0 0 40px;
+  width:auto;
+  min-width:0;
+  aspect-ratio:1;
+  height:auto;
+  min-height:0;
+  padding:0;
+  border-radius:50%;
+  background:linear-gradient(145deg,rgba(54,54,52,.88),rgba(29,30,30,.84));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 4px 14px rgba(0,0,0,.22);
+  backdrop-filter:blur(18px) saturate(1.4);
+  -webkit-backdrop-filter:blur(18px) saturate(1.4);
+}
+.contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing) .contao-live-edit-inline-actions>[data-action="toggle"] [data-live-edit-wand]{
+  display:block;
+  flex:none;
+  width:16px;
+  height:16px;
+  margin:0;
+  visibility:visible;
+  opacity:1;
+}
+.contao-live-edit-inline-bar.is-ready:not(.is-active):not(.is-editing) .contao-live-edit-inline-actions>[data-action="toggle"] [data-live-edit-pointer]{display:none}
+/* Reuse the exact Lucide-style wand from the button as the live-edit cursor. */
+:root{--contao-live-edit-wand-cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23fffefa' stroke-width='4.4'%3E%3Cpath d='m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72'/%3E%3Cpath d='m14 7 3 3M5 6v4M19 14v4M10 2v2M7 8H3m18 8h-4M11 3H9'/%3E%3C/g%3E%3Cg stroke='%23171717' stroke-width='2.2'%3E%3Cpath d='m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72'/%3E%3Cpath d='m14 7 3 3M5 6v4M19 14v4M10 2v2M7 8H3m18 8h-4M11 3H9'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") 3 17,crosshair}

@@ -18,7 +18,7 @@ vendor/bin/contao-setup
 vendor/bin/contao-console assets:install public --symlink
 ```
 
-To install with the Contao Manager's package upload, download `contao-live-edit-0.3.3-manager-upload.zip` from the GitHub release and upload it under **Packages → Upload packages**. This artifact includes the version metadata required for Manager uploads.
+To install with the Contao Manager's package upload, download `contao-live-edit-0.3.4-manager-upload.zip` from the GitHub release and upload it under **Packages → Upload packages**. This artifact includes the version metadata required for Manager uploads.
 
 For the previous `0.1.x` line, use `composer require bngmnn/contao-live-edit:^0.1`.
 

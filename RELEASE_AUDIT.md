@@ -1,3 +1,11 @@
+# Contao Live Edit — stable 0.3.4 release update
+
+## Release summary
+
+The `v0.3.4` patch release refines the live-edit toolbar: the idle wand control is 40×40 with a 16×16 icon, active controls have an explicit order, and the page-tools actions align from the start of their row. It also includes the custom unsaved-text dialog, avoids prompting when a field has not changed, adds the toolbar Help popover and keyboard tips, and uses the wand as the live-edit cursor. Frontend CSS and JavaScript cache keys are advanced.
+
+The release artifacts are source ZIP and Contao Manager upload ZIP, each with a SHA-256 checksum. This release does not claim authenticated installation acceptance across Contao 5.3 and 6.
+
 # Contao Live Edit — stable 0.3.3 release update
 
 Date: 2026-10-20

@@ -43,6 +43,8 @@
 
   let activeField = null;
   let originalMarkup = '';
+  let originalEditMarkup = '';
+  let activeFieldDirty = false;
   let beginSequence = 0;
   let textMode = false;
   let popover = null;
@@ -102,19 +104,25 @@
   bar.className = 'contao-live-edit-inline-bar is-ready';
   bar.setAttribute('role', 'region');
   bar.setAttribute('aria-label', 'Live editing controls');
-  bar.innerHTML = '<span class="contao-live-edit-inline-hint">Select text to edit · Hover over a block for its controls</span><span class="contao-live-edit-inline-status" aria-live="polite"></span><div class="contao-live-edit-inline-actions"><button type="button" data-context-toggle aria-expanded="false" aria-controls="contao-live-edit-context-drawer" aria-label="Open page tools" title="Page tools"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg></button><button type="button" data-action="toggle" aria-label="Start live editing" title="Start live editing"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg><span data-live-edit-label>Start live editing</span></button></div><button type="button" data-action="cancel">Cancel</button><button type="button" data-action="save">Save</button><nav class="contao-live-edit-context-drawer" id="contao-live-edit-context-drawer" aria-label="Page tools" hidden><button type="button" data-context-template>Template studio</button><a data-context-page>Page settings</a><div class="contao-live-edit-context-articles"><button type="button" data-context-articles-toggle aria-expanded="false" aria-controls="contao-live-edit-context-article-list"><span>Articles</span><span aria-hidden="true">›</span></button><div class="contao-live-edit-context-article-popout" id="contao-live-edit-context-article-list" data-context-article-list></div></div><div class="contao-live-edit-context-divider" role="separator"></div><a data-context-route="modules">Modules</a><a data-context-route="image-sizes">Image sizes</a><a data-context-route="layouts">Layouts</a></nav>';
+  bar.innerHTML = '<span class="contao-live-edit-inline-status" aria-live="polite"></span><div class="contao-live-edit-inline-actions"><button type="button" data-context-toggle aria-expanded="false" aria-controls="contao-live-edit-context-drawer" aria-label="Open page tools" title="Page tools"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg></button><span class="contao-live-edit-inline-live-indicator" aria-live="off"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg><span>Live editing on</span></span><button type="button" data-action="toggle" aria-label="Start live editing" title="Start live editing"><svg data-live-edit-wand viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg><svg data-live-edit-pointer viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 3 14 12-7 1-4 6-3-19Z"/></svg></button></div><button type="button" data-action="cancel">Cancel</button><button type="button" data-action="save">Save</button><nav class="contao-live-edit-context-drawer" id="contao-live-edit-context-drawer" aria-label="Page tools" hidden><button type="button" data-context-template>Template studio</button><a data-context-page>Page settings</a><div class="contao-live-edit-context-articles"><button type="button" data-context-articles-toggle aria-expanded="false" aria-controls="contao-live-edit-context-article-list"><span>Articles</span><span aria-hidden="true">›</span></button><div class="contao-live-edit-context-article-popout" id="contao-live-edit-context-article-list" data-context-article-list></div></div><div class="contao-live-edit-context-divider" role="separator"></div><a data-context-route="modules">Modules</a><a data-context-route="image-sizes">Image sizes</a><a data-context-route="layouts">Layouts</a><div class="contao-live-edit-context-divider" role="separator"></div><div class="contao-live-edit-context-help"><button type="button" data-context-help-toggle aria-expanded="false" aria-controls="contao-live-edit-context-help-popover"><span>Help</span><span aria-hidden="true">›</span></button><section class="contao-live-edit-context-help-popover" id="contao-live-edit-context-help-popover" data-context-help-popover aria-label="Live editing help" hidden><h2>Live editing tips</h2><ul><li>Click text on the page to edit it.</li><li>Hover over a content block to reveal its controls.</li><li>Use the wand cursor to choose editable text.</li></ul><h3>Shortcuts</h3><dl><div><dt><kbd>Enter</kbd> or <kbd>F2</kbd></dt><dd>Edit focused text</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel text changes</dd></div><div><dt><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Enter</kbd></dt><dd>Save text changes</dd></div></dl></section></div></nav>';
   document.body.append(bar);
 
   const status = bar.querySelector('.contao-live-edit-inline-status');
   const toggleButton = bar.querySelector('[data-action="toggle"]');
-  const toggleLabel = toggleButton.querySelector('[data-live-edit-label]');
   const saveButton = bar.querySelector('[data-action="save"]');
   const cancelButton = bar.querySelector('[data-action="cancel"]');
-  const contextToggle = bar.querySelector('[data-context-toggle]');
   const contextDrawer = bar.querySelector('.contao-live-edit-context-drawer');
   const articleList = contextDrawer.querySelector('[data-context-article-list]');
   const articlesGroup = contextDrawer.querySelector('.contao-live-edit-context-articles');
   const articlesToggle = contextDrawer.querySelector('[data-context-articles-toggle]');
+  const helpToggle = contextDrawer.querySelector('[data-context-help-toggle]');
+  const helpPopover = contextDrawer.querySelector('[data-context-help-popover]');
+  const helpGroup = helpToggle.closest('.contao-live-edit-context-help');
+  const liveIndicator = bar.querySelector('.contao-live-edit-inline-live-indicator');
+  const actions = bar.querySelector('.contao-live-edit-inline-actions');
+  const contextToggle = bar.querySelector('[data-context-toggle]');
+  actions.insertBefore(toggleButton, contextToggle);
+  bar.insertBefore(liveIndicator, actions);
   document.body.append(contextDrawer);
   let backendPopover = null;
   let backendPopoverOpener = null;
@@ -288,7 +296,45 @@
     popout.style.width = '100%';
     popout.style.maxHeight = `${Math.max(120, Math.min(viewportHeight * 0.45, 360))}px`;
   };
+  const setHelpOpen = (open) => {
+    helpPopover.hidden = !open;
+    helpToggle.setAttribute('aria-expanded', String(open));
+    helpGroup.classList.toggle('is-open', open);
+    if (open) positionHelpPopover();
+  };
+  const positionHelpPopover = () => {
+    if (helpPopover.hidden || contextDrawer.hidden) return;
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft || 0;
+    const viewportTop = viewport?.offsetTop || 0;
+    const viewportWidth = viewport?.width || window.innerWidth;
+    const viewportHeight = viewport?.height || window.innerHeight;
+    const drawerRect = contextDrawer.getBoundingClientRect();
+    const groupRect = helpGroup.getBoundingClientRect();
+    const gap = 12;
+    const margin = 12;
+    const leftSpace = Math.max(0, drawerRect.left - viewportLeft - gap - margin);
+    const rightSpace = Math.max(0, viewportLeft + viewportWidth - drawerRect.right - gap - margin);
+    const sideSpace = Math.max(leftSpace, rightSpace);
+    helpPopover.style.left = 'auto';
+    helpPopover.style.right = 'auto';
+    helpPopover.style.top = '0px';
+    if (sideSpace >= 220) {
+      helpPopover.style.position = 'absolute';
+      helpPopover.style.width = `${Math.min(280, sideSpace)}px`;
+      if (leftSpace >= rightSpace) helpPopover.style.right = `calc(100% + ${gap}px)`;
+      else helpPopover.style.left = `calc(100% + ${gap}px)`;
+      const height = helpPopover.getBoundingClientRect().height;
+      const top = Math.max(viewportTop + margin, Math.min(groupRect.top, viewportTop + viewportHeight - height - margin));
+      helpPopover.style.top = `${top - groupRect.top}px`;
+      return;
+    }
+    helpPopover.style.position = 'static';
+    helpPopover.style.width = '100%';
+    helpPopover.style.maxHeight = `${Math.max(140, Math.min(viewportHeight * 0.55, 420))}px`;
+  };
   const setContextMenuOpen = (open) => {
+    if (!open) setHelpOpen(false);
     contextDrawer.hidden = !open;
     contextToggle.setAttribute('aria-expanded', String(open));
     if (open) {
@@ -299,11 +345,17 @@
   const repositionContextMenus = () => {
     positionContextDrawer();
     if (articlesGroup.classList.contains('is-open')) positionArticlesPopout();
+    if (!helpPopover.hidden) positionHelpPopover();
   };
   window.addEventListener('resize', repositionContextMenus, { passive: true });
   window.visualViewport?.addEventListener('resize', repositionContextMenus, { passive: true });
   window.visualViewport?.addEventListener('scroll', repositionContextMenus, { passive: true });
   contextToggle.addEventListener('click', () => setContextMenuOpen(contextDrawer.hidden));
+  helpToggle.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setHelpOpen(helpPopover.hidden);
+  });
   contextDrawer.querySelector('[data-context-template]').addEventListener('click', () => {
     setContextMenuOpen(false);
     openTemplateEditor(document.documentElement.dataset.contaoLiveEditPageTemplate || '', 'page');
@@ -315,6 +367,11 @@
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && backendPopover && !backendPopover.hidden) {
       closeBackendPopover();
+      return;
+    }
+    if (event.key === 'Escape' && !helpPopover.hidden) {
+      setHelpOpen(false);
+      helpToggle.focus();
       return;
     }
     if (event.key === 'Escape' && !contextDrawer.hidden) {
@@ -329,29 +386,63 @@
     status.classList.toggle('is-error', error);
   };
 
-  const finish = (restore, discardConfirmed = false) => {
+  let discardPromptPromise = null;
+  const confirmDiscardTextChanges = () => {
+    if (discardPromptPromise) return discardPromptPromise;
+
+    discardPromptPromise = new Promise((resolve) => {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'contao-live-edit-discard-dialog';
+      dialog.setAttribute('aria-labelledby', 'contao-live-edit-discard-title');
+      dialog.innerHTML = '<section><span class="contao-live-edit-modal-kicker">UNSAVED TEXT</span><h2 id="contao-live-edit-discard-title">Leave this text?</h2><p>Your changes have not been saved.</p><footer><button type="button" data-discard-stay>Keep editing</button><button type="button" data-discard-confirm>Discard changes</button></footer></section>';
+      document.body.append(dialog);
+
+      let settled = false;
+      const settle = (discard) => {
+        if (settled) return;
+        settled = true;
+        if (dialog.open) dialog.close();
+        dialog.remove();
+        discardPromptPromise = null;
+        resolve(discard);
+      };
+
+      dialog.addEventListener('cancel', (event) => { event.preventDefault(); settle(false); });
+      dialog.addEventListener('click', (event) => { if (event.target === dialog) settle(false); });
+      dialog.querySelector('[data-discard-stay]').addEventListener('click', () => settle(false));
+      dialog.querySelector('[data-discard-confirm]').addEventListener('click', () => settle(true));
+      dialog.showModal();
+      dialog.querySelector('[data-discard-stay]').focus();
+    });
+
+    return discardPromptPromise;
+  };
+
+  const finish = async (restore, discardConfirmed = false) => {
     if (!activeField) return true;
-    if (restore && !discardConfirmed && activeField.innerHTML !== originalMarkup && !window.confirm('Discard your unsaved text changes?')) return false;
+    const hasUnsavedText = activeFieldDirty && activeField.innerHTML !== originalEditMarkup;
+    if (restore && !discardConfirmed && hasUnsavedText && !await confirmDiscardTextChanges()) return false;
     if (restore) activeField.innerHTML = originalMarkup;
     activeField.contentEditable = 'false';
     activeField.classList.remove('is-inline-editing');
     renderedStateByField.delete(activeField);
     activeField = null;
+    activeFieldDirty = false;
+    originalEditMarkup = '';
     bar.classList.remove('is-editing');
     saveButton.disabled = false;
     setMessage('');
     return true;
   };
 
-  const syncActivation = () => {
+  const syncActivation = async () => {
     if (!isActive() && popover && !closePopover()) textMode = true;
-    if (!isActive() && activeField && !finish(true)) textMode = true;
+    if (!isActive() && activeField && !await finish(true)) textMode = true;
     const active = isActive();
     if (!active) beginSequence += 1;
     sessionStorage.setItem(activationKey, String(active));
     bar.classList.toggle('is-active', active);
     document.body.classList.toggle('contao-live-edit-text-editing', active);
-    toggleLabel.textContent = active ? 'Live editing on' : 'Start live editing';
     toggleButton.setAttribute('aria-pressed', String(active));
     toggleButton.setAttribute('aria-label', active ? 'Stop live editing' : 'Start live editing');
     toggleButton.title = active ? 'Stop live editing' : 'Start live editing';
@@ -416,7 +507,7 @@
   const begin = async (field, selectAll = true) => {
     if (!isActive()) return;
     if (activeField === field) return;
-    if (activeField && activeField !== field && !finish(true)) return;
+    if (activeField && activeField !== field && !await finish(true)) return;
     const sequence = ++beginSequence;
     let sourceValue;
     if (field.dataset.inlineRecord && field.dataset.inlineField) {
@@ -441,6 +532,8 @@
       if (['text', 'teaser'].includes(field.dataset.inlineField)) mergeRenderedState(field, sourceValue);
       else field.textContent = sourceValue;
     }
+    originalEditMarkup = field.innerHTML;
+    activeFieldDirty = false;
     field.contentEditable = 'true';
     field.classList.add('is-inline-editing');
     bar.classList.add('is-editing');
@@ -454,6 +547,10 @@
       selection.addRange(range);
     }
   };
+
+  document.addEventListener('input', (event) => {
+    if (activeField && event.target instanceof Node && activeField.contains(event.target)) activeFieldDirty = true;
+  });
 
   const closePopover = (discardConfirmed = false) => {
     if (!popover) return true;
@@ -523,7 +620,7 @@
   };
   const openTemplateEditor = async (preferredPath = '', recordType = '') => {
     const opener = document.activeElement;
-    if (activeField && !finish(true)) return;
+    if (activeField && !await finish(true)) return;
     if (!closePopover()) return;
     templateOpener = opener;
     if (!templateModal) {
@@ -631,7 +728,7 @@
 
 
   window.addEventListener('beforeunload', (event) => {
-    const hasUnsavedText = activeField && activeField.innerHTML !== originalMarkup;
+    const hasUnsavedText = activeField && activeFieldDirty && activeField.innerHTML !== originalEditMarkup;
     const hasUnsavedTemplate = templateModal?.isConnected && templateHasUnsavedChanges();
     if (!hasUnsavedText && !hasUnsavedTemplate && !popoverDirty) return;
     event.preventDefault();
@@ -1014,9 +1111,9 @@
     }
   }, true);
 
-  const openLinkEditor = (link) => {
+  const openLinkEditor = async (link) => {
     const opener = document.activeElement;
-    if (activeField && !finish(true)) return;
+    if (activeField && !await finish(true)) return;
     if (!closePopover()) return;
     popoverOpener = opener;
     popover = document.createElement('form');
@@ -1087,9 +1184,9 @@
     });
   };
 
-  const openImageEditor = (image) => {
+  const openImageEditor = async (image) => {
     const opener = document.activeElement;
-    if (activeField && !finish(true)) return;
+    if (activeField && !await finish(true)) return;
     if (!closePopover()) return;
     popoverOpener = opener;
     const imageRecord = image.closest('[data-contao-live-edit-type="image"]');
@@ -1316,7 +1413,7 @@
 
   const openElementEditor = async (record, { html = false } = {}) => {
     const opener = document.activeElement;
-    if (activeField && !finish(true)) return;
+    if (activeField && !await finish(true)) return;
     const id = record?.dataset.contaoLiveEditRecord;
     if (!id) return;
     if (!closePopover()) return;
@@ -1847,11 +1944,11 @@
     if (pendingClick) window.clearTimeout(pendingClick.timer);
     pendingClick = {
       anchor,
-      timer: window.setTimeout(() => {
+      timer: window.setTimeout(async () => {
         const clickToReplay = pendingClick?.anchor;
         pendingClick = null;
         if (!clickToReplay?.isConnected) return;
-        if (activeField && !finish(true)) return;
+        if (activeField && !await finish(true)) return;
         replayingClick = true;
         clickToReplay.click();
         replayingClick = false;
@@ -1909,7 +2006,7 @@
     begin(field);
   }, true);
 
-  document.addEventListener('keydown', (event) => {
+  document.addEventListener('keydown', async (event) => {
     const dialog = document.querySelector('[role="dialog"][aria-modal="true"]');
     if (dialog && event.key === 'Tab') {
       const focusable = [...dialog.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
@@ -1949,7 +2046,7 @@
     if (!activeField) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      finish(true, true);
+      await finish(true, true);
     } else if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.preventDefault();
       save();
@@ -1995,7 +2092,7 @@
     activationTransitionTimer = window.setTimeout(clearActivationTransition, 600);
   };
   toggleButton.addEventListener('click', () => animateActivation(!isActive()));
-  cancelButton.addEventListener('click', () => finish(true, true));
+  cancelButton.addEventListener('click', async () => finish(true, true));
   saveButton.addEventListener('click', save);
 
   async function save() {
@@ -2052,7 +2149,7 @@
         }
       }
       originalMarkup = field.innerHTML;
-      finish(false);
+      await finish(false);
       setMessage('Saved');
       window.setTimeout(() => {
         if (!activeField) setMessage('');
