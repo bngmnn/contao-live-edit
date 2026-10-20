@@ -1,3 +1,13 @@
+# Contao Live Edit — stable 0.3.2 release update
+
+Date: 2026-10-20
+
+## Release summary
+
+The `v0.3.2` patch release fixes inline editing for headings rendered inside a text element's rich-text body. Those headings now edit the saved text body instead of loading the separate headline field, which could be empty and make the clicked text disappear. It also removes the duplicate edit start previously triggered by both pointer and click events and advances the frontend script cache key.
+
+The release does not claim authenticated installation acceptance across Contao 5.3 and 6.
+
 # Contao Live Edit — stable 0.3.1 release update
 
 Date: 2026-10-20

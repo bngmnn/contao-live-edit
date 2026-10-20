@@ -620,7 +620,7 @@
 
     const heading = target.closest('h1,h2,h3,h4,h5,h6');
     const fieldName = editable.dataset.contaoLiveEditType === 'headline' ? 'headline'
-      : editable.dataset.contaoLiveEditType === 'text' && heading && editable.contains(heading) ? 'headline'
+      : editable.dataset.contaoLiveEditType === 'text' && heading && editable.contains(heading) && !heading.closest('.rte') ? 'headline'
         : editable.dataset.contaoLiveEditType === 'text' ? 'text' : '';
     if (!fieldName || editable.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover')) return null;
     const field = 'headline' === fieldName && heading ? heading
@@ -1764,12 +1764,6 @@
     }
     (firstField || popover.querySelector('[type="submit"]')).focus();
   };
-
-  document.addEventListener('pointerdown', (event) => {
-    if (!isActive() || event.button !== 0 || event.target.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover, .contao-live-edit-action-bar, .contao-live-edit-move-handle, .contao-live-edit-settings-handle, .contao-live-edit-html-handle, .contao-live-edit-page-template-handle, [data-inline-ignore-links]')) return;
-    const field = event.target.closest(fields) || inlineTextField(event.target);
-    if (field && field !== activeField) begin(field, false);
-  }, true);
 
   document.addEventListener('click', (event) => {
     const anchor = event.target.closest('a');
