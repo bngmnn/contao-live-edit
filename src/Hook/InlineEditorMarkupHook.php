@@ -169,7 +169,7 @@ final class InlineEditorMarkupHook
             .'<meta name="contao-live-edit-modules-url" content="'.htmlspecialchars($moduleSettingsUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'">'
             .'<meta name="contao-live-edit-image-sizes-url" content="'.htmlspecialchars($imageSizesUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'">'
             .'<meta name="contao-live-edit-layouts-url" content="'.htmlspecialchars($layoutsUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'">'
-            .'<link rel="stylesheet" href="'.$escapedBasePath.'/bundles/contaoliveedit/css/inline-edit.css?v=54">';
+            .'<link rel="stylesheet" href="'.$escapedBasePath.'/bundles/contaoliveedit/css/inline-edit.css?v=55">';
         if (str_contains($buffer, '</head>')) {
             $buffer = preg_replace('~</head>~i', $head.'</head>', $buffer, 1) ?? $buffer;
         } else {
@@ -177,7 +177,7 @@ final class InlineEditorMarkupHook
         }
 
         $script = '<script src="'.$escapedBasePath.'/assets/hugerte/js/hugerte.min.js" defer></script>'
-            .'<script src="'.$escapedBasePath.'/bundles/contaoliveedit/js/inline-edit.js?v=59" defer></script>';
+            .'<script src="'.$escapedBasePath.'/bundles/contaoliveedit/js/inline-edit.js?v=60" defer></script>';
         if (str_contains($buffer, '</body>')) {
             return preg_replace('~</body>~i', $script.'</body>', $buffer, 1) ?? $buffer;
         }

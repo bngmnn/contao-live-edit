@@ -1,3 +1,19 @@
+# Contao Live Edit — stable 0.3.3 release update
+
+Date: 2026-10-20
+
+## Release summary
+
+The `v0.3.3` patch release preserves the rendered rich-text element structure while inline editing, so classes and inline styles supplied by Contao's frontend rendering remain available during editing. Those rendering-only additions are removed from the save payload so they are not written back as editorial content. It also updates the live-edit cursor and advances the frontend CSS and JavaScript cache keys.
+
+This release does not claim authenticated installation acceptance across Contao 5.3 and 6.
+
+## Checks
+
+- `node --check Resources/public/js/inline-edit.js` passed.
+- `php -l src/Hook/InlineEditorMarkupHook.php` passed.
+- `composer validate --no-check-publish` passed.
+
 # Contao Live Edit — stable 0.3.2 release update
 
 Date: 2026-10-20

@@ -335,6 +335,7 @@
     if (restore) activeField.innerHTML = originalMarkup;
     activeField.contentEditable = 'false';
     activeField.classList.remove('is-inline-editing');
+    renderedStateByField.delete(activeField);
     activeField = null;
     bar.classList.remove('is-editing');
     saveButton.disabled = false;
@@ -357,6 +358,60 @@
     updateKeyboardTargets(active);
   };
   new MutationObserver(syncActivation).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+  const renderedStateByField = new WeakMap();
+  const mergeRenderedState = (field, markup) => {
+    const template = document.createElement('template');
+    template.innerHTML = markup;
+
+    const liveElements = [field, ...field.querySelectorAll('*')];
+    const paths = new Map();
+    const pathFor = (element, root) => {
+      const path = [];
+      for (let node = element; node && node !== root; node = node.parentElement || node.parentNode) {
+        const parent = node.parentElement || node.parentNode;
+        if (!parent) return null;
+        path.unshift([...parent.children].indexOf(node));
+      }
+      return path;
+    };
+    liveElements.forEach((element) => {
+      const path = pathFor(element, field);
+      if (path) paths.set(path.join('.'), element);
+    });
+
+    const renderedState = [];
+    const sourceElements = [...template.content.querySelectorAll('*')];
+    sourceElements.forEach((element) => {
+      const path = pathFor(element, template.content);
+      const live = (element.id ? field.querySelector(`#${CSS.escape(element.id)}`) : null)
+        || paths.get(path?.join('.'));
+      if (!live || live.tagName !== element.tagName) return;
+
+      const addedClasses = [];
+      live.classList.forEach((className) => {
+        if (!element.classList.contains(className)) {
+          element.classList.add(className);
+          addedClasses.push(className);
+        }
+      });
+      const addedStyles = [];
+      for (const property of live.style) {
+        if (!element.style.hasProperty(property)) {
+          element.style.setProperty(property, live.style.getPropertyValue(property), live.style.getPropertyPriority(property));
+          addedStyles.push(property);
+        }
+      }
+      if (addedClasses.length || addedStyles.length) renderedState.push({ id: element.id, path, addedClasses, addedStyles });
+    });
+
+    const editorControls = [...field.children].filter((child) => child.matches('.contao-live-edit-action-bar, .contao-live-edit-move-handle, .contao-live-edit-settings-handle'));
+    for (const child of [...field.childNodes]) {
+      if (!editorControls.includes(child)) child.remove();
+    }
+    field.insertBefore(template.content.cloneNode(true), editorControls[0] || null);
+    renderedStateByField.set(field, renderedState);
+  };
 
   const begin = async (field, selectAll = true) => {
     if (!isActive()) return;
@@ -383,7 +438,7 @@
     activeField = field;
     originalMarkup = field.innerHTML;
     if (undefined !== sourceValue) {
-      if (['text', 'teaser'].includes(field.dataset.inlineField)) field.innerHTML = sourceValue;
+      if (['text', 'teaser'].includes(field.dataset.inlineField)) mergeRenderedState(field, sourceValue);
       else field.textContent = sourceValue;
     }
     field.contentEditable = 'true';
@@ -1947,6 +2002,13 @@
     if (!activeField) return;
     const field = activeField;
     const cleanedField = field.cloneNode(true);
+    (renderedStateByField.get(field) || []).forEach(({ id, path, addedClasses, addedStyles }) => {
+      const target = (id ? cleanedField.querySelector(`#${CSS.escape(id)}`) : null)
+        || path.reduce((parent, index) => parent?.children[index] || null, cleanedField);
+      if (!target) return;
+      addedClasses.forEach((className) => target.classList.remove(className));
+      addedStyles.forEach((property) => target.style.removeProperty(property));
+    });
     cleanedField.querySelectorAll('.contao-live-edit-action-bar, .contao-live-edit-move-handle, .contao-live-edit-settings-handle').forEach((control) => control.remove());
     const contentRoot = cleanedField.matches('.rte') ? cleanedField : (cleanedField.querySelector('.rte') || cleanedField);
     const plainText = contentRoot.innerText.trim();
@@ -1984,17 +2046,9 @@
         if ('' === (result.value ?? plainText)) field.remove();
         else field.textContent = result.value ?? plainText;
       } else {
-        const template = document.createElement('template');
-        template.innerHTML = result.value ?? value;
         for (const target of relatedFields) {
           const richText = target.matches('.rte') ? target : (target.querySelector('.rte') || target);
-          if (richText === target) {
-            const editorControls = [...target.children].filter((child) => child.matches('.contao-live-edit-action-bar, .contao-live-edit-move-handle, .contao-live-edit-settings-handle'));
-            for (const child of [...target.childNodes]) if (!editorControls.includes(child)) child.remove();
-            richText.insertBefore(template.content.cloneNode(true), editorControls[0] || null);
-          } else {
-            richText.replaceChildren(template.content.cloneNode(true));
-          }
+          mergeRenderedState(richText, result.value ?? value);
         }
       }
       originalMarkup = field.innerHTML;
