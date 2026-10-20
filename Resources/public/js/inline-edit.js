@@ -6,8 +6,44 @@
   if (!token) return;
   const activationKey = 'contao-live-edit-editor-active';
 
+  const revealContaoHiddenElements = (root = document) => {
+    const elements = [];
+    if (root.nodeType === Node.ELEMENT_NODE && root.matches('[data-contao-live-edit-invisible="true"]')) elements.push(root);
+    elements.push(...root.querySelectorAll('[data-contao-live-edit-invisible="true"]'));
+    for (const element of elements) {
+      const parent = element.parentElement;
+      if (parent && !parent.matches('[data-contao-live-edit-invisible="true"]')) {
+        const parentStyle = getComputedStyle(parent);
+        if (parentStyle.display === 'none' || parentStyle.visibility === 'hidden') continue;
+      }
+      const style = getComputedStyle(element);
+      const display = style.display === 'none' ? ({
+        LI: 'list-item', TR: 'table-row', TD: 'table-cell', TH: 'table-cell',
+        THEAD: 'table-header-group', TBODY: 'table-row-group', TFOOT: 'table-footer-group',
+        SPAN: 'inline', A: 'inline', EM: 'inline', STRONG: 'inline', SMALL: 'inline',
+        LABEL: 'inline', CODE: 'inline', TIME: 'inline', IMG: 'inline-block',
+      }[element.tagName] || 'block') : style.display;
+      const width = Number.parseFloat(style.width) || 0;
+      const height = Number.parseFloat(style.height) || 0;
+      const hasClip = style.clip !== 'auto' || style.clipPath !== 'none';
+      const visuallyClipped = hasClip || (width <= 1 && height <= 1 && (style.overflow !== 'visible' || style.position === 'absolute' || style.position === 'fixed'));
+      element.style.setProperty('--contao-live-edit-reveal-display', display);
+      element.dataset.contaoLiveEditRevealClipped = String(visuallyClipped);
+      element.classList.add('contao-live-edit-preview-hidden');
+      element.removeAttribute('data-contao-live-edit-hidden-label');
+    }
+  };
+
+  revealContaoHiddenElements();
+  new MutationObserver((changes) => {
+    for (const { addedNodes } of changes) {
+      for (const node of addedNodes) if (node.nodeType === Node.ELEMENT_NODE) revealContaoHiddenElements(node);
+    }
+  }).observe(document.documentElement, { childList: true, subtree: true });
+
   let activeField = null;
   let originalMarkup = '';
+  let beginSequence = 0;
   let textMode = false;
   let popover = null;
   let popoverOpener = null;
@@ -39,26 +75,253 @@
         field.dataset.inlineRecordType = 'news';
         field.dataset.inlineField = name;
       };
-      const headline = article.querySelector(':scope > h1') || article.querySelector(':scope > h2');
-      if (headline) mark(headline.matches('a') ? headline : (headline.querySelector(':scope > a') || headline), 'headline', true);
-      if (article.querySelector(':scope > h1')) mark(article.querySelector(':scope > h2'), 'subheadline');
-      mark(article.querySelector(':scope > .content-text'), 'teaser');
+      const headline = article.querySelector('.project-caption h2')
+        || article.querySelector(':scope > h1')
+        || article.querySelector('.case-header h1')
+        || article.querySelector(':scope > h2');
+      const headlineFields = new Set([headline, ...article.querySelectorAll('.project-empty .empty-title')].filter(Boolean));
+      for (const title of headlineFields) {
+        const editableTitle = title.matches('a') ? title : (title.querySelector(':scope > a') || title);
+        mark(editableTitle, 'headline', true);
+      }
+      const subheadline = article.querySelector('.case-header h1')
+        ? article.querySelector('.case-header .case-lede')
+        : article.querySelector(':scope > h1') ? article.querySelector(':scope > h2') : null;
+      if (subheadline) mark(subheadline, 'subheadline');
+      const teaserFields = new Set(article.querySelectorAll(':scope > .content-text, .project-overlay-copy, .project-teaser, .case-fallback .case-copy'));
+      for (const teaser of teaserFields) mark(teaser, 'teaser');
     }
   };
 
   markNewsFields();
+  new MutationObserver((changes) => {
+    if (changes.some(({ addedNodes }) => [...addedNodes].some((node) => node.nodeType === Node.ELEMENT_NODE && (node.matches('.contao-live-edit-news') || node.querySelector('.contao-live-edit-news'))))) markNewsFields();
+  }).observe(document.body, { childList: true, subtree: true });
 
   const bar = document.createElement('div');
   bar.className = 'contao-live-edit-inline-bar is-ready';
   bar.setAttribute('role', 'region');
-  bar.setAttribute('aria-label', 'Inline text editor');
-  bar.innerHTML = '<span class="contao-live-edit-inline-hint">Double-click text, images, or links · Enter edits focused text · Hover or focus for settings and move</span><span class="contao-live-edit-inline-status" aria-live="polite"></span><button type="button" data-action="toggle">Edit text</button><button type="button" data-action="templates">Templates</button><button type="button" data-action="cancel">Cancel</button><button type="button" data-action="save">Save</button>';
+  bar.setAttribute('aria-label', 'Live editing controls');
+  bar.innerHTML = '<span class="contao-live-edit-inline-hint">Select text to edit · Hover over a block for its controls</span><span class="contao-live-edit-inline-status" aria-live="polite"></span><div class="contao-live-edit-inline-actions"><button type="button" data-context-toggle aria-expanded="false" aria-controls="contao-live-edit-context-drawer" aria-label="Open page tools" title="Page tools"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg></button><button type="button" data-action="toggle" aria-label="Start live editing" title="Start live editing"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg><span data-live-edit-label>Start live editing</span></button></div><button type="button" data-action="cancel">Cancel</button><button type="button" data-action="save">Save</button><nav class="contao-live-edit-context-drawer" id="contao-live-edit-context-drawer" aria-label="Page tools" hidden><button type="button" data-context-template>Template studio</button><a data-context-page>Page settings</a><div class="contao-live-edit-context-articles"><button type="button" data-context-articles-toggle aria-expanded="false" aria-controls="contao-live-edit-context-article-list"><span>Articles</span><span aria-hidden="true">›</span></button><div class="contao-live-edit-context-article-popout" id="contao-live-edit-context-article-list" data-context-article-list></div></div><div class="contao-live-edit-context-divider" role="separator"></div><a data-context-route="modules">Modules</a><a data-context-route="image-sizes">Image sizes</a><a data-context-route="layouts">Layouts</a></nav>';
   document.body.append(bar);
 
   const status = bar.querySelector('.contao-live-edit-inline-status');
   const toggleButton = bar.querySelector('[data-action="toggle"]');
+  const toggleLabel = toggleButton.querySelector('[data-live-edit-label]');
   const saveButton = bar.querySelector('[data-action="save"]');
   const cancelButton = bar.querySelector('[data-action="cancel"]');
+  const contextToggle = bar.querySelector('[data-context-toggle]');
+  const contextDrawer = bar.querySelector('.contao-live-edit-context-drawer');
+  const articleList = contextDrawer.querySelector('[data-context-article-list]');
+  const articlesGroup = contextDrawer.querySelector('.contao-live-edit-context-articles');
+  const articlesToggle = contextDrawer.querySelector('[data-context-articles-toggle]');
+  document.body.append(contextDrawer);
+  let backendPopover = null;
+  let backendPopoverOpener = null;
+
+  const buildContextMenu = () => {
+    const pageLink = contextDrawer.querySelector('[data-context-page]');
+    const pageSettingsUrl = document.querySelector('meta[name="contao-live-edit-page-settings-url"]')?.content;
+    const pageName = document.querySelector('meta[name="contao-live-edit-page-name"]')?.content?.trim();
+    pageLink.hidden = !pageSettingsUrl;
+    if (pageSettingsUrl) {
+      pageLink.href = pageSettingsUrl;
+      pageLink.textContent = pageName ? `Page settings · ${pageName}` : 'Page settings';
+    }
+
+    const destinations = {
+      modules: 'modules',
+      'image-sizes': 'image-sizes',
+      layouts: 'layouts',
+    };
+    for (const link of contextDrawer.querySelectorAll('[data-context-route]')) {
+      const name = destinations[link.dataset.contextRoute];
+      const url = document.querySelector(`meta[name="contao-live-edit-${name}-url"]`)?.content;
+      link.hidden = !url;
+      if (url) link.href = url;
+    }
+
+    prepareArticles();
+    const articles = new Map();
+    for (const article of document.querySelectorAll('.contao-live-edit-article')) {
+      const match = [...article.classList].map((name) => name.match(/^contao-live-edit-article-(\d+)$/)).find(Boolean);
+      const id = match?.[1];
+      const href = article.dataset.contaoLiveEditArticleUrl;
+      if (!id || !href || articles.has(id)) continue;
+      const title = article.querySelector('h1,h2,h3,[data-contao-live-edit-article-title]')?.textContent?.trim().replace(/\s+/g, ' ');
+      articles.set(id, { href, title: title || `Article ${id}` });
+    }
+    articleList.replaceChildren();
+    if (!articles.size) {
+      const empty = document.createElement('p');
+      empty.className = 'contao-live-edit-context-empty';
+      empty.textContent = 'No articles found on this page.';
+      articleList.append(empty);
+      return;
+    }
+    for (const article of articles.values()) {
+      const link = document.createElement('a');
+      link.href = article.href;
+      link.textContent = article.title;
+      articleList.append(link);
+    }
+  };
+  const setArticlesOpen = (open) => {
+    articlesGroup.classList.toggle('is-open', open);
+    articlesToggle.setAttribute('aria-expanded', String(open));
+    if (open) positionArticlesPopout();
+  };
+  let articlesCloseTimer = null;
+  const keepArticlesOpen = () => {
+    window.clearTimeout(articlesCloseTimer);
+    setArticlesOpen(true);
+  };
+  const deferArticlesClose = () => {
+    window.clearTimeout(articlesCloseTimer);
+    articlesCloseTimer = window.setTimeout(() => setArticlesOpen(false), 180);
+  };
+  articlesGroup.addEventListener('pointerenter', (event) => {
+    if (event.pointerType === 'mouse' || event.pointerType === 'pen') keepArticlesOpen();
+  });
+  articlesGroup.addEventListener('pointerleave', (event) => {
+    if (event.pointerType === 'mouse' || event.pointerType === 'pen') deferArticlesClose();
+  });
+  const articlePopout = articlesGroup.querySelector('.contao-live-edit-context-article-popout');
+  articlePopout.addEventListener('pointerenter', keepArticlesOpen);
+  articlePopout.addEventListener('pointerleave', deferArticlesClose);
+  articlesGroup.addEventListener('focusin', () => setArticlesOpen(true));
+  articlesGroup.addEventListener('focusout', (event) => {
+    if (!articlesGroup.contains(event.relatedTarget)) setArticlesOpen(false);
+  });
+  articlesToggle.addEventListener('click', () => setArticlesOpen(articlesToggle.getAttribute('aria-expanded') !== 'true'));
+  const closeBackendPopover = () => {
+    if (!backendPopover || backendPopover.hidden) return;
+    backendPopover.hidden = true;
+    const opener = backendPopoverOpener;
+    backendPopoverOpener = null;
+    backendPopover.querySelector('iframe').src = 'about:blank';
+    if (opener?.isConnected) opener.focus();
+  };
+  const openBackendPopover = (url, title, opener) => {
+    if (!backendPopover) {
+      backendPopover = document.createElement('section');
+      backendPopover.className = 'contao-live-edit-backend-popover';
+      backendPopover.setAttribute('role', 'dialog');
+      backendPopover.setAttribute('aria-modal', 'false');
+      backendPopover.setAttribute('aria-labelledby', 'contao-live-edit-backend-popover-title');
+      backendPopover.hidden = true;
+      backendPopover.innerHTML = '<header><h2 id="contao-live-edit-backend-popover-title"></h2><button type="button" data-backend-popover-close aria-label="Close">×</button></header><iframe title="Contao settings" loading="eager" referrerpolicy="same-origin"></iframe>';
+      document.body.append(backendPopover);
+      backendPopover.querySelector('[data-backend-popover-close]').addEventListener('click', closeBackendPopover);
+    }
+    backendPopoverOpener = opener;
+    backendPopover.querySelector('h2').textContent = title;
+    backendPopover.querySelector('iframe').src = url;
+    backendPopover.hidden = false;
+    backendPopover.querySelector('[data-backend-popover-close]').focus();
+  };
+  contextDrawer.addEventListener('click', (event) => {
+    const link = event.target.closest('a[href]');
+    if (!link) return;
+    const target = new URL(link.href, window.location.href);
+    if (target.origin !== window.location.origin) return;
+    event.preventDefault();
+    setContextMenuOpen(false);
+    setArticlesOpen(false);
+    openBackendPopover(target.href, link.textContent.trim(), link);
+  });
+  const positionContextDrawer = () => {
+    if (contextDrawer.hidden) return;
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft || 0;
+    const viewportTop = viewport?.offsetTop || 0;
+    const viewportWidth = viewport?.width || window.innerWidth;
+    const viewportHeight = viewport?.height || window.innerHeight;
+    const margin = 12;
+    const width = Math.min(340, Math.max(0, viewportWidth - margin * 2));
+    const availableHeight = Math.max(120, viewportHeight - margin * 2);
+    contextDrawer.style.position = 'fixed';
+    contextDrawer.style.width = `${width}px`;
+    contextDrawer.style.maxHeight = `${availableHeight}px`;
+    contextDrawer.style.right = 'auto';
+    contextDrawer.style.bottom = 'auto';
+    const anchor = contextToggle.getBoundingClientRect();
+    const height = contextDrawer.getBoundingClientRect().height;
+    const left = Math.max(viewportLeft + margin, Math.min(anchor.right - width, viewportLeft + viewportWidth - width - margin));
+    let top = anchor.top - height - margin;
+    if (top < viewportTop + margin) top = anchor.bottom + margin;
+    top = Math.max(viewportTop + margin, Math.min(top, viewportTop + viewportHeight - height - margin));
+    contextDrawer.style.left = `${left}px`;
+    contextDrawer.style.top = `${top}px`;
+  };
+  const positionArticlesPopout = () => {
+    const popout = articlesGroup.querySelector('.contao-live-edit-context-article-popout');
+    if (!popout || contextDrawer.hidden) return;
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft || 0;
+    const viewportTop = viewport?.offsetTop || 0;
+    const viewportWidth = viewport?.width || window.innerWidth;
+    const viewportHeight = viewport?.height || window.innerHeight;
+    const drawerRect = contextDrawer.getBoundingClientRect();
+    const groupRect = articlesGroup.getBoundingClientRect();
+    const gap = 12;
+    const margin = 12;
+    const leftSpace = Math.max(0, drawerRect.left - viewportLeft - gap - margin);
+    const rightSpace = Math.max(0, viewportLeft + viewportWidth - drawerRect.right - gap - margin);
+    const sideSpace = Math.max(leftSpace, rightSpace);
+    popout.style.left = 'auto';
+    popout.style.right = 'auto';
+    popout.style.top = '0px';
+    if (sideSpace >= 140) {
+      popout.style.position = 'absolute';
+      popout.style.width = `${Math.min(300, sideSpace)}px`;
+      if (leftSpace >= rightSpace) popout.style.right = `calc(100% + ${gap}px)`;
+      else popout.style.left = `calc(100% + ${gap}px)`;
+      const height = popout.getBoundingClientRect().height;
+      const top = Math.max(viewportTop + margin, Math.min(groupRect.top, viewportTop + viewportHeight - height - margin));
+      popout.style.top = `${top - groupRect.top}px`;
+      return;
+    }
+    // On narrow screens, put the list directly below Articles rather than
+    // letting a side panel cover the row or spill beyond the viewport.
+    popout.style.position = 'static';
+    popout.style.width = '100%';
+    popout.style.maxHeight = `${Math.max(120, Math.min(viewportHeight * 0.45, 360))}px`;
+  };
+  const setContextMenuOpen = (open) => {
+    contextDrawer.hidden = !open;
+    contextToggle.setAttribute('aria-expanded', String(open));
+    if (open) {
+      buildContextMenu();
+      positionContextDrawer();
+    }
+  };
+  const repositionContextMenus = () => {
+    positionContextDrawer();
+    if (articlesGroup.classList.contains('is-open')) positionArticlesPopout();
+  };
+  window.addEventListener('resize', repositionContextMenus, { passive: true });
+  window.visualViewport?.addEventListener('resize', repositionContextMenus, { passive: true });
+  window.visualViewport?.addEventListener('scroll', repositionContextMenus, { passive: true });
+  contextToggle.addEventListener('click', () => setContextMenuOpen(contextDrawer.hidden));
+  contextDrawer.querySelector('[data-context-template]').addEventListener('click', () => {
+    setContextMenuOpen(false);
+    openTemplateEditor(document.documentElement.dataset.contaoLiveEditPageTemplate || '', 'page');
+  });
+  document.addEventListener('pointerdown', (event) => {
+    if (!contextDrawer.hidden && !contextDrawer.contains(event.target) && !contextToggle.contains(event.target)) setContextMenuOpen(false);
+    if (backendPopover && !backendPopover.hidden && !event.target.closest('.contao-live-edit-backend-popover')) closeBackendPopover();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && backendPopover && !backendPopover.hidden) {
+      closeBackendPopover();
+      return;
+    }
+    if (event.key === 'Escape' && !contextDrawer.hidden) {
+      setContextMenuOpen(false);
+      contextToggle.focus();
+    }
+  });
 
   const isActive = () => textMode;
   const setMessage = (message, error = false) => {
@@ -83,30 +346,58 @@
     if (!isActive() && popover && !closePopover()) textMode = true;
     if (!isActive() && activeField && !finish(true)) textMode = true;
     const active = isActive();
+    if (!active) beginSequence += 1;
     sessionStorage.setItem(activationKey, String(active));
     bar.classList.toggle('is-active', active);
     document.body.classList.toggle('contao-live-edit-text-editing', active);
-    toggleButton.textContent = active ? 'Text editing on' : 'Edit text';
+    toggleLabel.textContent = active ? 'Live editing on' : 'Start live editing';
     toggleButton.setAttribute('aria-pressed', String(active));
+    toggleButton.setAttribute('aria-label', active ? 'Stop live editing' : 'Start live editing');
+    toggleButton.title = active ? 'Stop live editing' : 'Start live editing';
     updateKeyboardTargets(active);
   };
-  new MutationObserver(syncActivation).observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
+  new MutationObserver(syncActivation).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
-  const begin = (field) => {
+  const begin = async (field, selectAll = true) => {
     if (!isActive()) return;
+    if (activeField === field) return;
     if (activeField && activeField !== field && !finish(true)) return;
+    const sequence = ++beginSequence;
+    let sourceValue;
+    if (field.dataset.inlineRecord && field.dataset.inlineField) {
+      try {
+        const source = await request('/contao-live-edit/inline-source', {
+          id: field.dataset.inlineRecord,
+          recordType: field.dataset.inlineRecordType || 'content',
+          field: field.dataset.inlineField,
+        });
+        if (sequence !== beginSequence || !isActive()) return;
+        sourceValue = source.value;
+      } catch (error) {
+        if (sequence !== beginSequence) return;
+        setMessage(error.message || 'Could not load the saved text.', true);
+        return;
+      }
+    }
+    if (sequence !== beginSequence || !isActive()) return;
     activeField = field;
     originalMarkup = field.innerHTML;
+    if (undefined !== sourceValue) {
+      if (['text', 'teaser'].includes(field.dataset.inlineField)) field.innerHTML = sourceValue;
+      else field.textContent = sourceValue;
+    }
     field.contentEditable = 'true';
     field.classList.add('is-inline-editing');
     bar.classList.add('is-editing');
     setMessage('');
     field.focus();
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(field);
-    selection.removeAllRanges();
-    selection.addRange(range);
+    if (selectAll) {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(field);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
   };
 
   const closePopover = (discardConfirmed = false) => {
@@ -175,7 +466,7 @@
     await Promise.all([loadMode('mode-html.js'), loadMode('mode-twig.js'), loadMode('theme-chrome.js'), loadMode('theme-dracula.js')]);
     templateAceAssetsLoaded = true;
   };
-  const openTemplateEditor = async () => {
+  const openTemplateEditor = async (preferredPath = '', recordType = '') => {
     const opener = document.activeElement;
     if (activeField && !finish(true)) return;
     if (!closePopover()) return;
@@ -241,13 +532,28 @@
         button.addEventListener('click', () => loadTemplate(template.path, button)); list.append(button);
       }
       search.oninput = () => list.querySelectorAll('button').forEach((button) => { button.hidden = !button.textContent.toLowerCase().includes(search.value.trim().toLowerCase()); });
-      if (templateSelectedPath) {
-        const previous = [...list.querySelectorAll('button')].find((button) => button.dataset.templatePath === templateSelectedPath);
-        if (previous) await loadTemplate(templateSelectedPath, previous);
-      }
       const query = new URLSearchParams(window.location.search).get('template');
-      const preferred = result.templates.find((item) => item.path.replace(/\.(html\.twig|html5|xhtml)$/, '') === query || item.path === query);
-      if (preferred) await loadTemplate(preferred.path, [...list.querySelectorAll('button')].find((button) => button.dataset.templatePath === preferred.path));
+      const recordTemplate = preferredPath || '';
+      const defaultElementTemplate = recordType ? `ce_${recordType}` : '';
+      const preferredNames = [recordTemplate, defaultElementTemplate, templateSelectedPath, query, document.documentElement.dataset.contaoLiveEditPageTemplate].filter(Boolean);
+      const normalizeTemplateName = (name) => String(name)
+        .replace(/^\/+/, '')
+        .replace(/^templates\//i, '')
+        .replace(/\.(html\.twig|html5|xhtml)$/i, '')
+        .toLowerCase();
+      const templateByName = (name) => {
+        const target = normalizeTemplateName(name);
+        if (!target) return null;
+        return result.templates.find((item) => normalizeTemplateName(item.path) === target)
+          || result.templates.find((item) => normalizeTemplateName(item.path).endsWith(`/${target}`))
+          || result.templates.find((item) => normalizeTemplateName(item.path).split('/').pop() === target.split('/').pop());
+      };
+      const preferred = preferredNames.map(templateByName).find(Boolean);
+      if (preferred) {
+        await loadTemplate(preferred.path, [...list.querySelectorAll('button')].find((button) => button.dataset.templatePath === preferred.path));
+      } else if (recordTemplate) {
+        status.textContent = `No project template matches “${recordTemplate}”. Choose the template file from the list.`;
+      }
     } catch (error) { list.textContent = error.message || 'Could not load templates.'; }
     editor.oninput = () => { status.classList.remove('is-error'); status.textContent = currentSource() === templateOriginalSource ? 'No unsaved changes' : 'Unsaved changes'; };
     save.onclick = async () => {
@@ -268,7 +574,6 @@
     };
   };
 
-  bar.querySelector('[data-action="templates"]').addEventListener('click', openTemplateEditor);
 
   window.addEventListener('beforeunload', (event) => {
     const hasUnsavedText = activeField && activeField.innerHTML !== originalMarkup;
@@ -341,15 +646,46 @@
   };
 
   const addMoveHandle = (record) => {
-    if (!isActive() || record.querySelector(':scope > .contao-live-edit-move-handle')) return;
+    if (!isActive() || record.querySelector(':scope > .contao-live-edit-action-bar')) return;
     if ('static' === window.getComputedStyle(record).position) record.style.position = 'relative';
+    const toolbar = document.createElement('div');
+    toolbar.className = 'contao-live-edit-action-bar';
+    toolbar.setAttribute('role', 'toolbar');
+    toolbar.setAttribute('aria-label', 'Element actions');
+    const makeAction = (className, label, icon, action) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = className;
+      button.style.setProperty('background', 'transparent', 'important');
+      button.style.setProperty('box-shadow', 'none', 'important');
+      button.style.setProperty('border-color', 'transparent', 'important');
+      button.title = label;
+      button.setAttribute('aria-label', label);
+      button.innerHTML = icon;
+      button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); action(button); });
+      toolbar.append(button);
+      return button;
+    };
+    const separator = () => { const rule = document.createElement('span'); rule.className = 'contao-live-edit-action-separator'; rule.setAttribute('aria-hidden', 'true'); toolbar.append(rule); };
+    const icons = {
+      drag: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="5" r="1.3"/><circle cx="14" cy="5" r="1.3"/><circle cx="6" cy="10" r="1.3"/><circle cx="14" cy="10" r="1.3"/><circle cx="6" cy="15" r="1.3"/><circle cx="14" cy="15" r="1.3"/></svg>',
+      settings: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.2 2.5h3.6l.5 2a6 6 0 0 1 1.2.7l2-.6 1.8 3.1-1.5 1.5v1.5l1.5 1.5-1.8 3.1-2-.6a6 6 0 0 1-1.2.7l-.5 2H8.2l-.5-2a6 6 0 0 1-1.2-.7l-2 .6-1.8-3.1 1.5-1.5V9.2L2.7 7.7l1.8-3.1 2 .6a6 6 0 0 1 1.2-.7z"/><circle cx="10" cy="10" r="2.3"/></svg>',
+      html: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6.5 5-4 5 4 5M13.5 5l4 5-4 5M11.5 3 8.5 17"/></svg>',
+      up: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4m-5 5 5-5 5 5"/></svg>',
+      down: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12m5-5-5 5-5-5"/></svg>',
+      show: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10s2.8-5 8-5 8 5 8 5-2.8 5-8 5-8-5-8-5Z"/><circle cx="10" cy="10" r="2.2"/></svg>',
+      remove: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12m-10 0 .7 10.2h6.6L14 6M8 6V4h4v2m-3 3v4m2-4v4"/></svg>'
+    };
     const handle = document.createElement('button');
     handle.type = 'button';
     handle.className = 'contao-live-edit-move-handle';
     handle.draggable = true;
+    handle.style.setProperty('background', 'transparent', 'important');
+    handle.style.setProperty('box-shadow', 'none', 'important');
+    handle.style.setProperty('border-color', 'transparent', 'important');
     handle.title = 'Drag to rearrange';
     handle.setAttribute('aria-label', 'Drag to rearrange this element');
-    handle.textContent = '⠿';
+    handle.innerHTML = icons.drag;
     handle.addEventListener('click', (event) => event.stopPropagation());
     handle.addEventListener('dragstart', (event) => {
       event.stopPropagation();
@@ -358,15 +694,186 @@
       record.classList.add('contao-live-edit-is-moving');
     });
     handle.addEventListener('dragend', () => record.classList.remove('contao-live-edit-is-moving'));
-    record.append(handle);
-    const settings = document.createElement('button');
-    settings.type = 'button';
-    settings.className = 'contao-live-edit-settings-handle';
-    settings.title = 'Edit element settings';
-    settings.setAttribute('aria-label', 'Edit element settings');
-    settings.textContent = '⚙';
-    settings.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openElementEditor(record); });
-    record.append(settings);
+    toolbar.append(handle);
+    const sameParentRecords = () => [...document.querySelectorAll('[data-contao-live-edit-record][data-contao-live-edit-type]')]
+      .filter((item) => item.dataset.contaoLiveEditParentId === record.dataset.contaoLiveEditParentId
+        && item.dataset.contaoLiveEditParentTable === record.dataset.contaoLiveEditParentTable);
+    const move = async (direction, button) => {
+      const siblings = sameParentRecords();
+      const index = siblings.indexOf(record);
+      const anchor = siblings[index + (direction === 'up' ? -1 : 1)];
+      if (!anchor) return;
+      button.disabled = true;
+      try {
+        await request('/contao-live-edit/reorder-content', { id: record.dataset.contaoLiveEditRecord, anchorId: anchor.dataset.contaoLiveEditRecord, placement: direction === 'up' ? 'before' : 'after' });
+        window.location.reload();
+      } catch (error) { button.disabled = false; window.alert(error.message || 'Could not move this element.'); }
+    };
+    const moveUp = makeAction('contao-live-edit-action-move', 'Move element up', icons.up, (button) => move('up', button));
+    const moveDown = makeAction('contao-live-edit-action-move', 'Move element down', icons.down, (button) => move('down', button));
+    const refreshMoveState = () => {
+      const siblings = sameParentRecords();
+      const index = siblings.indexOf(record);
+      moveUp.disabled = index <= 0;
+      moveDown.disabled = index < 0 || index >= siblings.length - 1;
+    };
+    refreshMoveState();
+    separator();
+    makeAction('contao-live-edit-settings-handle', 'Edit element settings', icons.settings, () => openElementEditor(record));
+    makeAction('contao-live-edit-html-handle', 'Edit HTML or template source', icons.html, () => openElementEditor(record, { html: true }));
+    separator();
+    const visibility = makeAction('contao-live-edit-action-visibility', 'Hide element', icons.show, async (button) => {
+      const isHidden = record.dataset.contaoLiveEditInvisible === 'true';
+      button.disabled = true;
+      try {
+        await request('/contao-live-edit/save-element-fields', { id: record.dataset.contaoLiveEditRecord, fields: { invisible: !isHidden } });
+        record.dataset.contaoLiveEditInvisible = String(!isHidden);
+        button.disabled = false;
+        renderVisibility();
+        if (isHidden) {
+          revealContaoHiddenElements(record);
+          setMessage('Element hidden in published view');
+        } else {
+          setMessage('Showing element…');
+          window.location.reload();
+        }
+      } catch (error) { button.disabled = false; window.alert(error.message || 'Could not change element visibility.'); }
+    });
+    const renderVisibility = () => {
+      const isHidden = record.dataset.contaoLiveEditInvisible === 'true';
+      visibility.title = isHidden ? 'Show element' : 'Hide element';
+      visibility.setAttribute('aria-label', visibility.title);
+      visibility.setAttribute('aria-pressed', String(isHidden));
+      visibility.innerHTML = isHidden
+        ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10s2.8-5 8-5 8 5 8 5-2.8 5-8 5-8-5-8-5Z"/><circle cx="10" cy="10" r="2.2"/><path d="m3 3 14 14"/></svg>'
+        : icons.show;
+    };
+    renderVisibility();
+    const remove = makeAction('contao-live-edit-action-remove', 'Remove element', icons.remove, async (button) => {
+      if (!window.confirm('Remove this element from the page? This cannot be undone.')) return;
+      button.disabled = true;
+      try {
+        await request('/contao-live-edit/delete-element', { id: record.dataset.contaoLiveEditRecord });
+        record.remove();
+        setMessage('Element removed');
+      }
+      catch (error) { button.disabled = false; window.alert(error.message || 'Could not remove this element.'); }
+    });
+    record.append(toolbar);
+  };
+
+  const prepareArticles = () => {
+    const seen = new Set();
+    const add = (article, id, url = '') => {
+      if (!article || seen.has(id)) return;
+      seen.add(id);
+      article.classList.add('contao-live-edit-article');
+      article.dataset.contaoLiveEditArticleUrl ||= url || appUrl(`/contao?do=article&table=tl_article&id=${encodeURIComponent(id)}`);
+    };
+
+    for (const article of document.querySelectorAll('.contao-live-edit-article')) {
+      const idClass = [...article.classList].find((name) => /^contao-live-edit-article-\d+$/.test(name));
+      if (idClass) add(article, idClass.slice('contao-live-edit-article-'.length), article.dataset.contaoLiveEditArticleUrl);
+    }
+    for (const record of document.querySelectorAll('[data-contao-live-edit-parent-table="tl_article"][data-contao-live-edit-parent-id]')) {
+      const id = record.dataset.contaoLiveEditParentId;
+      if (!/^\d+$/.test(id) || seen.has(id)) continue;
+      const article = document.querySelector(`.contao-live-edit-article-${id}`)
+        || document.getElementById(`article-${id}`)
+        || record.closest('.mod_article')
+        || record;
+      add(article, id, record.dataset.contaoLiveEditArticleUrl);
+    }
+  };
+
+  const addPageTemplateHandle = (footer) => {
+    const pageTemplate = document.documentElement.dataset.contaoLiveEditPageTemplate;
+    if (!isActive() || !pageTemplate || footer.querySelector(':scope > .contao-live-edit-page-template-handle')) return;
+    if ('static' === window.getComputedStyle(footer).position) footer.style.position = 'relative';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'contao-live-edit-html-handle contao-live-edit-page-template-handle';
+    button.title = 'Edit page template';
+    button.setAttribute('aria-label', button.title);
+    button.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6.5 5-4 5 4 5M13.5 5l4 5-4 5M11.5 3 8.5 17"/></svg>';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openTemplateEditor(pageTemplate, 'page');
+    });
+    footer.append(button);
+  };
+  const addPageTemplateHandles = () => document.querySelectorAll('footer').forEach(addPageTemplateHandle);
+
+  let hiddenElementsLoaded = false;
+  const loadHiddenElements = async () => {
+    if (hiddenElementsLoaded) return;
+    hiddenElementsLoaded = true;
+    prepareArticles();
+    const pageId = document.querySelector('meta[name="contao-live-edit-page-id"]')?.content;
+    if (!/^\d+$/.test(pageId || '') || Number(pageId) < 1) return;
+
+    try {
+      const response = await fetch(appUrl(`/contao-live-edit/hidden-elements?pageId=${encodeURIComponent(pageId)}`), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not load hidden elements.');
+      const present = new Set([...document.querySelectorAll('[data-contao-live-edit-record]')].map((record) => record.dataset.contaoLiveEditRecord));
+      for (const element of result.elements || []) {
+        if (present.has(String(element.id))) continue;
+        const siblings = [...document.querySelectorAll(`[data-contao-live-edit-parent-table="tl_article"][data-contao-live-edit-parent-id="${element.pid}"]`)]
+          .sort((a, b) => Number(a.dataset.contaoLiveEditSorting || 0) - Number(b.dataset.contaoLiveEditSorting || 0));
+        const next = siblings.find((sibling) => Number(sibling.dataset.contaoLiveEditSorting || 0) > element.sorting);
+        const previous = [...siblings].reverse().find((sibling) => Number(sibling.dataset.contaoLiveEditSorting || 0) < element.sorting);
+        if (element.html) {
+          const rendered = document.createElement('template');
+          rendered.innerHTML = element.html;
+          const renderedRecord = rendered.content.querySelector(`[data-contao-live-edit-record="${CSS.escape(String(element.id))}"]`);
+          if (renderedRecord) {
+            renderedRecord.dataset.contaoLiveEditInvisible = 'true';
+            renderedRecord.dataset.contaoLiveEditParentId = String(element.pid);
+            renderedRecord.dataset.contaoLiveEditParentTable = 'tl_article';
+            renderedRecord.dataset.contaoLiveEditSorting = String(element.sorting);
+            renderedRecord.dataset.contaoLiveEditTemplate = element.template || `ce_${element.type}`;
+            if (next?.parentElement) next.parentElement.insertBefore(rendered.content, next);
+            else if (previous?.parentElement) previous.after(rendered.content);
+            else {
+              const article = document.querySelector(`.contao-live-edit-article-${element.pid}`)
+                || document.getElementById(`article-${element.pid}`)
+                || document.querySelector('.contao-live-edit-article');
+              (article || document.body).append(rendered.content);
+            }
+            revealContaoHiddenElements(renderedRecord);
+            addMoveHandle(renderedRecord);
+            present.add(String(element.id));
+            continue;
+          }
+        }
+        const placeholder = document.createElement('div');
+        placeholder.className = 'contao-live-edit-hidden-element';
+        placeholder.dataset.contaoLiveEditRecord = String(element.id);
+        placeholder.dataset.contaoLiveEditType = element.type;
+        placeholder.dataset.contaoLiveEditParentId = String(element.pid);
+        placeholder.dataset.contaoLiveEditParentTable = 'tl_article';
+        placeholder.dataset.contaoLiveEditSorting = String(element.sorting);
+        placeholder.dataset.contaoLiveEditInvisible = 'true';
+        placeholder.dataset.contaoLiveEditTemplate = element.template || `ce_${element.type}`;
+        placeholder.textContent = `${element.title || element.type} · Hidden in published view`;
+        if (next?.parentElement) next.parentElement.insertBefore(placeholder, next);
+        else if (previous?.parentElement) previous.after(placeholder);
+        else {
+          const article = document.querySelector(`.contao-live-edit-article-${element.pid}`)
+            || document.getElementById(`article-${element.pid}`)
+            || document.querySelector('.contao-live-edit-article');
+          (article || document.body).append(placeholder);
+        }
+        revealContaoHiddenElements(placeholder);
+        addMoveHandle(placeholder);
+        present.add(String(element.id));
+      }
+    } catch (error) {
+      console.warn(error.message || 'Could not load hidden elements.');
+      hiddenElementsLoaded = false;
+    }
   };
 
   const keyboardTargetState = new Map();
@@ -382,6 +889,9 @@
     }
 
     const candidates = new Set(document.querySelectorAll(fields));
+    prepareArticles();
+    addPageTemplateHandles();
+    void loadHiddenElements();
     for (const record of document.querySelectorAll('[data-contao-live-edit-record][data-contao-live-edit-type]')) {
       addMoveHandle(record);
       const field = inlineTextField(record);
@@ -401,6 +911,8 @@
 
   document.addEventListener('pointerover', (event) => {
     if (!isActive()) return;
+    const footer = event.target.closest('footer');
+    if (footer) addPageTemplateHandle(footer);
     const record = recordForTarget(event.target);
     if (record && !record.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover')) addMoveHandle(record);
   });
@@ -747,7 +1259,7 @@
     popover.querySelector('[name="alt"]').focus();
   };
 
-  const openElementEditor = async (record) => {
+  const openElementEditor = async (record, { html = false } = {}) => {
     const opener = document.activeElement;
     if (activeField && !finish(true)) return;
     const id = record?.dataset.contaoLiveEditRecord;
@@ -760,7 +1272,7 @@
     popover.setAttribute('aria-modal', 'true');
     popover.setAttribute('tabindex', '-1');
     popover.setAttribute('aria-label', 'Edit content element');
-    popover.innerHTML = '<div class="contao-live-edit-element-modal-card"><header class="contao-live-edit-element-header"><div><span class="contao-live-edit-modal-kicker">QUICK EDIT</span><h2>Element settings</h2><p>Edit the fields that matter here. Timing and visibility are just below.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header><div class="contao-live-edit-element-fields" data-element-fields><div class="contao-live-edit-library-message">Loading settings…</div></div><footer class="contao-live-edit-image-modal-footer"><div class="contao-live-edit-element-quick-actions"><button type="button" class="contao-live-edit-reorder-control" data-action="move-up" aria-label="Move element up" title="Move element up">↑ Move up</button><button type="button" class="contao-live-edit-reorder-control" data-action="move-down" aria-label="Move element down" title="Move element down">↓ Move down</button><button type="button" class="contao-live-edit-delete-element" data-action="delete" aria-label="Remove element" title="Remove element"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12m-10 0 .7 10.2h6.6L14 6M8 6V4h4v2m-3 3v4m2-4v4"/></svg></button><button type="button" class="contao-live-edit-visibility-toggle" data-action="visibility" aria-pressed="false" aria-label="Hide element" title="Hide element"></button></div><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save changes</button></footer></div>';
+    popover.innerHTML = '<div class="contao-live-edit-element-modal-card"><header class="contao-live-edit-element-header"><div><span class="contao-live-edit-modal-kicker">QUICK EDIT</span><h2>Element settings</h2><p>Edit the fields that matter here. Timing and visibility are just below.</p></div><button type="button" class="contao-live-edit-modal-close" data-action="cancel" aria-label="Close">×</button></header><div class="contao-live-edit-element-fields" data-element-fields><div class="contao-live-edit-library-message">Loading settings…</div></div><footer class="contao-live-edit-image-modal-footer"><div class="contao-live-edit-element-quick-actions"><button type="button" class="contao-live-edit-reorder-control" data-action="move-up" aria-label="Move element up" title="Move element up">↑</button><button type="button" class="contao-live-edit-reorder-control" data-action="move-down" aria-label="Move element down" title="Move element down">↓</button><button type="button" class="contao-live-edit-delete-element" data-action="delete" aria-label="Remove element" title="Remove element"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12m-10 0 .7 10.2h6.6L14 6M8 6V4h4v2m-3 3v4m2-4v4"/></svg></button><button type="button" class="contao-live-edit-visibility-toggle" data-action="visibility" aria-pressed="false" aria-label="Hide element" title="Hide element"></button></div><span class="contao-live-edit-popover-status" aria-live="polite"></span><button type="button" data-action="cancel">Cancel</button><button type="submit">Save changes</button></footer></div>';
     document.body.append(popover);
     trackPopoverChanges();
     popover.addEventListener('click', (event) => event.stopPropagation());
@@ -807,7 +1319,11 @@
       if (!window.confirm(message)) return;
       closePopover(true);
       setMessage('Removing element…');
-      try { await request('/contao-live-edit/delete-element', { id }); window.location.reload(); }
+      try {
+        await request('/contao-live-edit/delete-element', { id });
+        record.remove();
+        setMessage('Element removed');
+      }
       catch (error) { setMessage(error.message || 'Could not remove this element.', true); }
     });
 
@@ -827,7 +1343,7 @@
     });
 
     const controlFor = (field) => {
-      const wrapper = document.createElement(field.name === 'cssID' || ['listWizard', 'rowWizard', 'tableWizard'].includes(field.widget) ? 'div' : 'label');
+      const wrapper = document.createElement(field.richText || field.name === 'cssID' || ['listWizard', 'rowWizard', 'tableWizard'].includes(field.widget) ? 'div' : 'label');
       wrapper.className = 'contao-live-edit-element-field';
       if (field.dependencyGroups?.length) wrapper.dataset.dependencyGroups = JSON.stringify(field.dependencyGroups);
       if (field.name === 'cssID') wrapper.classList.add('is-cssid-pair');
@@ -837,6 +1353,12 @@
       title.className = 'contao-live-edit-element-field-title';
       title.textContent = popover.dataset.editorMode === 'description-list' && field.name === 'data' ? 'Terms and descriptions' : popover.dataset.editorMode === 'markdown' && field.name === 'code' ? 'Markdown' : field.name === 'highlight' && popover.dataset.editorMode === 'code' ? 'Syntax' : field.label || field.name;
       if (field.name !== 'cssID') wrapper.append(title);
+      if (field.richText) {
+        const sourceToggle = document.createElement('button');
+        sourceToggle.type = 'button'; sourceToggle.className = 'contao-live-edit-html-toggle';
+        sourceToggle.textContent = 'Edit HTML'; sourceToggle.setAttribute('aria-label', `Edit ${field.label || field.name} as HTML`);
+        wrapper.append(sourceToggle);
+      }
       let input;
       if (field.widget === 'datetime') {
         input = document.createElement('input'); input.type = 'datetime-local';
@@ -871,7 +1393,7 @@
           const option = document.createElement('option'); option.value = optionData.value; option.textContent = optionData.label; (optionData.group ? optionGroup : modeSelect).append(option);
         }
         modeSelect.value = String(field.value.mode ?? ''); mode.append(modeLabel, modeSelect); input.append(mode);
-      } else if ((['select', 'radio', 'pageTree', 'radioTable', 'selectTree'].includes(field.widget) || (field.options?.length && !['checkbox', 'fileTree', 'inputUnit', 'imageSize', 'text', 'textarea', 'listWizard', 'rowWizard', 'tableWizard'].includes(field.widget))) && field.options?.length) {
+      } else if (field.name === 'module' || ((['select', 'radio', 'pageTree', 'radioTable', 'selectTree'].includes(field.widget) || (field.options?.length && !['checkbox', 'fileTree', 'inputUnit', 'imageSize', 'text', 'textarea', 'listWizard', 'rowWizard', 'tableWizard'].includes(field.widget))) && field.options?.length)) {
         input = document.createElement('select');
         input.multiple = Boolean(field.multiple);
         if (field.widget === 'select' && !input.multiple) {
@@ -1107,36 +1629,59 @@
       refreshDependentFields();
       const richTextareas = [...fieldPanel.querySelectorAll('textarea.contao-live-edit-native-rte')];
       if (richTextareas.length && window.hugerte?.init) {
+        popover.classList.add('has-hugerte-editor');
         for (const textarea of richTextareas) {
           textarea.id = `contao-live-edit-rte-${id}-${textarea.name}`;
           const editorOptions = {
             target: textarea,
             height: 300,
-            menubar: false,
             branding: false,
             promotion: false,
             statusbar: false,
+            language: document.documentElement.lang || 'en',
             element_format: 'html',
-              language: document.documentElement.lang || 'en',
-              element_format: 'html',
-              entities: '160,nbsp,60,lt,62,gt,173,shy',
-              skin: document.documentElement.dataset.contaoLiveEditTheme === 'dark' ? 'oxide-dark' : 'oxide',
-              plugins: 'autosave charmap code fullscreen help image importcss link lists searchreplace stripnbsp table visualblocks visualchars',
-              menubar: 'file edit insert view format table help',
-              toolbar: 'link unlink | image | blocks | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | code',
-              extended_valid_elements: 'q[cite|class|title],article,section,hgroup,figure,figcaption',
-              contextmenu: false,
-              paste_data_images: false,
-              browser_spellcheck: true,
-              importcss_append: true,
-              branding: false,
-              content_style: document.documentElement.dataset.contaoLiveEditTheme === 'dark'
-                ? 'body{background:#202427;color:#e8e9e7;font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;padding:8px 12px}a{color:#ff7900}'
-                : 'body{background:#fff;color:#293d32;font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;padding:8px 12px}a{color:#c75b22}',
+            entities: '160,nbsp,60,lt,62,gt,173,shy',
+            skin: document.documentElement.dataset.contaoLiveEditTheme === 'dark' ? 'oxide-dark' : 'oxide',
+            plugins: 'autosave charmap code fullscreen help image importcss link lists searchreplace stripnbsp table visualblocks visualchars',
+            menubar: false,
+            toolbar_mode: 'sliding',
+            toolbar: 'link unlink | image | blocks | bold italic | alignleft aligncenter alignright | bullist numlist | code',
+            extended_valid_elements: 'q[cite|class|title],article,section,hgroup,figure,figcaption',
+            contextmenu: false,
+            paste_data_images: false,
+            browser_spellcheck: true,
+            importcss_append: true,
+            content_style: document.documentElement.dataset.contaoLiveEditTheme === 'dark'
+              ? 'body{background:#202427;color:#e8e9e7;font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;padding:8px 12px}a{color:#ff7900}'
+              : 'body{background:#fff;color:#293d32;font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;padding:8px 12px}a{color:#c75b22}',
             setup: (editor) => editor.on('change input undo redo', () => { textarea.value = editor.getContent(); textarea.dispatchEvent(new Event('input', { bubbles: true })); }),
           };
-          try { await window.hugerte.init(editorOptions); }
-          catch (error) { console.warn('Contao rich-text editor could not be initialized.', error); }
+          const sourceToggle = textarea.closest('.contao-live-edit-element-field')?.querySelector('.contao-live-edit-html-toggle');
+          const initVisualEditor = async () => { await window.hugerte.init(editorOptions); };
+          try {
+            await initVisualEditor();
+            sourceToggle?.addEventListener('click', async () => {
+              const editor = window.hugerte.get(textarea.id);
+              if (editor) {
+                textarea.value = editor.getContent();
+                editor.remove();
+                textarea.classList.add('is-html-source');
+                sourceToggle.textContent = 'Visual editor';
+                sourceToggle.setAttribute('aria-label', `Return to visual editing for ${textarea.name}`);
+                textarea.focus();
+              } else {
+                textarea.classList.remove('is-html-source');
+                try {
+                  await initVisualEditor();
+                  sourceToggle.textContent = 'Edit HTML';
+                  sourceToggle.setAttribute('aria-label', `Edit ${textarea.name} as HTML`);
+                } catch (error) {
+                  textarea.classList.add('is-html-source');
+                  console.warn('Contao rich-text editor could not be initialized.', error);
+                }
+              }
+            });
+          } catch (error) { console.warn('Contao rich-text editor could not be initialized.', error); }
         }
       }
       if (!result.fields.length) { const empty = document.createElement('p'); empty.className = 'contao-live-edit-library-message'; empty.textContent = 'This element has no editable fields in its Contao configuration.'; fieldPanel.append(empty); }
@@ -1152,6 +1697,7 @@
       setPopoverSaving(true);
       const values = {};
       for (const input of fieldPanel.querySelectorAll('input,textarea,select')) {
+        if (input.closest('[data-dependency-groups][hidden]')) continue;
         if (input.dataset.choiceField) continue;
         if (input.dataset.arrayField || input.dataset.imageSizeField || input.dataset.cssIdField || input.dataset.wizardField) continue;
         if (input.dataset.unitValue) { values[input.dataset.unitValue] = { ...(values[input.dataset.unitValue] || {}), value: input.value }; continue; }
@@ -1206,13 +1752,41 @@
       } catch (error) { setPopoverSaving(false); submit.disabled = false; status.textContent = error.message || 'Could not save element settings.'; status.classList.add('is-error'); }
     });
     const firstField = fieldPanel.querySelector('.contao-live-edit-source-editor') || fieldPanel.querySelector('.contao-live-edit-wizard-editor input, input:not([type="hidden"]),textarea,select');
+    if (html) {
+      const htmlToggle = fieldPanel.querySelector('.contao-live-edit-html-toggle');
+      if (htmlToggle) {
+        htmlToggle.click();
+        return;
+      }
+      const selectedTemplate = record.dataset.contaoLiveEditTemplate || templateSelectedPath;
+      await openTemplateEditor(selectedTemplate, record.dataset.contaoLiveEditType || '');
+      return;
+    }
     (firstField || popover.querySelector('[type="submit"]')).focus();
   };
 
-  document.addEventListener('click', (event) => {
-    if (!isActive() || replayingClick || !event.target.closest('a') || event.target.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover, [data-inline-ignore-links]')) return;
+  document.addEventListener('pointerdown', (event) => {
+    if (!isActive() || event.button !== 0 || event.target.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover, .contao-live-edit-action-bar, .contao-live-edit-move-handle, .contao-live-edit-settings-handle, .contao-live-edit-html-handle, .contao-live-edit-page-template-handle, [data-inline-ignore-links]')) return;
+    const field = event.target.closest(fields) || inlineTextField(event.target);
+    if (field && field !== activeField) begin(field, false);
+  }, true);
 
+  document.addEventListener('click', (event) => {
     const anchor = event.target.closest('a');
+    if (!isActive() || replayingClick || event.target.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover, .contao-live-edit-action-bar, .contao-live-edit-move-handle, .contao-live-edit-settings-handle, .contao-live-edit-html-handle, .contao-live-edit-page-template-handle, [data-inline-ignore-links]')) return;
+    const field = event.target.closest(fields) || inlineTextField(event.target);
+    if (field && field !== activeField) {
+      if (pendingClick) { window.clearTimeout(pendingClick.timer); pendingClick = null; }
+      if (anchor) event.preventDefault();
+      event.stopImmediatePropagation();
+      begin(field, false);
+      return;
+    }
+    if (!anchor) return;
+    if (field === activeField) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     event.stopImmediatePropagation();
     if (pendingClick?.anchor === anchor && event.detail > 1) {
@@ -1316,7 +1890,7 @@
     }
     if (isActive() && !activeField && ['Enter', 'F2'].includes(event.key)) {
       const field = event.target.closest(fields);
-      if (field && !event.target.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover, .contao-live-edit-move-handle, .contao-live-edit-settings-handle')) {
+      if (field && !event.target.closest('.contao-live-edit-inline-bar, .contao-live-edit-edit-popover, .contao-live-edit-action-bar, .contao-live-edit-move-handle, .contao-live-edit-settings-handle')) {
         event.preventDefault();
         event.stopPropagation();
         begin(field);
@@ -1336,10 +1910,42 @@
     if (popover && !popover.contains(event.target)) closePopover();
   });
 
-  toggleButton.addEventListener('click', () => {
-    textMode = !textMode;
+  let activationTransitionHandler = null;
+  let activationTransitionTimer = 0;
+  const clearActivationTransition = (removeClass = true) => {
+    if (activationTransitionHandler) bar.removeEventListener('transitionend', activationTransitionHandler);
+    if (activationTransitionTimer) window.clearTimeout(activationTransitionTimer);
+    activationTransitionHandler = null;
+    activationTransitionTimer = 0;
+    if (removeClass) bar.classList.remove('is-transitioning');
+  };
+  const animateActivation = (active) => {
+    clearActivationTransition(false);
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      bar.classList.remove('is-transitioning');
+      textMode = active;
+      syncActivation();
+      return;
+    }
+
+    void bar.offsetWidth;
+    bar.classList.add('is-transitioning');
+    textMode = active;
     syncActivation();
-  });
+    if (isActive() !== active) {
+      clearActivationTransition();
+      return;
+    }
+
+    activationTransitionHandler = (event) => {
+      if (event.target !== bar || event.propertyName !== 'max-width') return;
+      clearActivationTransition();
+    };
+    bar.addEventListener('transitionend', activationTransitionHandler);
+    activationTransitionTimer = window.setTimeout(clearActivationTransition, 600);
+  };
+  toggleButton.addEventListener('click', () => animateActivation(!isActive()));
   cancelButton.addEventListener('click', () => finish(true, true));
   saveButton.addEventListener('click', save);
 
@@ -1347,7 +1953,7 @@
     if (!activeField) return;
     const field = activeField;
     const cleanedField = field.cloneNode(true);
-    cleanedField.querySelectorAll('.contao-live-edit-move-handle, .contao-live-edit-settings-handle').forEach((control) => control.remove());
+    cleanedField.querySelectorAll('.contao-live-edit-action-bar, .contao-live-edit-move-handle, .contao-live-edit-settings-handle').forEach((control) => control.remove());
     const contentRoot = cleanedField.matches('.rte') ? cleanedField : (cleanedField.querySelector('.rte') || cleanedField);
     const plainText = contentRoot.innerText.trim();
     const richTextField = ['text', 'teaser'].includes(field.dataset.inlineField);
@@ -1375,21 +1981,26 @@
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not save this text.');
+      const relatedFields = field.dataset.inlineRecordType === 'news'
+        ? [...document.querySelectorAll(`[data-inline-record="${CSS.escape(field.dataset.inlineRecord)}"][data-inline-record-type="news"][data-inline-field="${CSS.escape(field.dataset.inlineField)}"]`)]
+        : [field];
       if (['headline', 'subheadline'].includes(field.dataset.inlineField)) {
-        field.textContent = result.value ?? plainText;
+        relatedFields.forEach((target) => { target.textContent = result.value ?? plainText; });
       } else if ('caption' === field.dataset.inlineField) {
         if ('' === (result.value ?? plainText)) field.remove();
         else field.textContent = result.value ?? plainText;
       } else {
-        const richText = field.matches('.rte') ? field : (field.querySelector('.rte') || field);
         const template = document.createElement('template');
         template.innerHTML = result.value ?? value;
-        if (richText === field) {
-          const editorControls = [...field.children].filter((child) => child.matches('.contao-live-edit-move-handle, .contao-live-edit-settings-handle'));
-          for (const child of [...field.childNodes]) if (!editorControls.includes(child)) child.remove();
-          field.insertBefore(template.content, editorControls[0] || null);
-        } else {
-          richText.replaceChildren(template.content);
+        for (const target of relatedFields) {
+          const richText = target.matches('.rte') ? target : (target.querySelector('.rte') || target);
+          if (richText === target) {
+            const editorControls = [...target.children].filter((child) => child.matches('.contao-live-edit-action-bar, .contao-live-edit-move-handle, .contao-live-edit-settings-handle'));
+            for (const child of [...target.childNodes]) if (!editorControls.includes(child)) child.remove();
+            richText.insertBefore(template.content.cloneNode(true), editorControls[0] || null);
+          } else {
+            richText.replaceChildren(template.content.cloneNode(true));
+          }
         }
       }
       originalMarkup = field.innerHTML;

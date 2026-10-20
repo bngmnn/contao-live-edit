@@ -13,6 +13,11 @@ contao_live_edit_save:
     controller: ContaoLiveEdit\Controller\InlineContentSaveController
     methods: [POST]
 
+contao_live_edit_inline_source:
+    path: /contao-live-edit/inline-source
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::inlineSource
+    methods: [POST]
+
 contao_live_edit_save_link:
     path: /contao-live-edit/save-link
     controller: ContaoLiveEdit\Controller\InlineContentSaveController::saveLink
@@ -41,6 +46,11 @@ contao_live_edit_insert:
 contao_live_edit_content_elements:
     path: /contao-live-edit/content-elements
     controller: ContaoLiveEdit\Controller\InlineContentSaveController::listContentElements
+    methods: [GET]
+
+contao_live_edit_hidden_elements:
+    path: /contao-live-edit/hidden-elements
+    controller: ContaoLiveEdit\Controller\InlineContentSaveController::hiddenElements
     methods: [GET]
 
 contao_live_edit_element_fields:

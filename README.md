@@ -10,15 +10,15 @@ The in-page toolbar also includes a template editor for custom templates in the 
 
 ## Installation
 
-Install the stable `0.2` release with Composer through Packagist:
+Install the stable `0.3` release with Composer through Packagist:
 
 ```sh
-composer require bngmnn/contao-live-edit:^0.2
+composer require bngmnn/contao-live-edit:^0.3
 vendor/bin/contao-setup
 vendor/bin/contao-console assets:install public --symlink
 ```
 
-To install with the Contao Manager's package upload, download `contao-live-edit-0.2.1-manager-upload.zip` from the GitHub release and upload it under **Packages → Upload packages**. This artifact includes the version metadata required for Manager uploads.
+To install with the Contao Manager's package upload, download `contao-live-edit-0.3.1-manager-upload.zip` from the GitHub release and upload it under **Packages → Upload packages**. This artifact includes the version metadata required for Manager uploads.
 
 For the previous `0.1.x` line, use `composer require bngmnn/contao-live-edit:^0.1`.
 

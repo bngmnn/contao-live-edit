@@ -1,3 +1,13 @@
+# Contao Live Edit — stable 0.3.1 release update
+
+Date: 2026-10-20
+
+## Release summary
+
+The `v0.3.1` patch release adds article-level editing controls and metadata, exposes hidden Contao elements in the editor, and improves inline source editing and save/reload behavior. It also refines the live-edit bar and context menu and advances editor asset cache keys. Package metadata now declares the project homepage.
+
+The release does not claim authenticated installation acceptance across Contao 5.3 and 6.
+
 # Contao Live Edit — stable 0.2.1 release update
 
 Date: 2026-10-15

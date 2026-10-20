@@ -123,6 +123,75 @@ final class InlineContentSaveController
         return new JsonResponse(['error' => 'This content element cannot be edited inline.'], 404);
     }
 
+    public function inlineSource(Request $request): JsonResponse
+    {
+        $this->framework->initialize();
+
+        if (!$this->isAuthorizedEditor($request)) {
+            return new JsonResponse(['error' => 'Sign in to Contao as an administrator to edit this page.'], 403);
+        }
+
+        try {
+            $payload = $request->toArray();
+        } catch (\Throwable) {
+            return new JsonResponse(['error' => 'Invalid request body.'], 400);
+        }
+
+        if (!$this->csrfTokenManager->isTokenValid(new CsrfToken('contao_live_edit', (string) ($payload['_token'] ?? '')))) {
+            return new JsonResponse(['error' => 'The edit session expired. Reload the page and try again.'], 419);
+        }
+
+        $id = filter_var($payload['id'] ?? null, FILTER_VALIDATE_INT);
+        $field = (string) ($payload['field'] ?? '');
+        $recordType = (string) ($payload['recordType'] ?? 'content');
+
+        if (!$id || !in_array($field, ['headline', 'subheadline', 'text', 'teaser', 'caption'], true)) {
+            return new JsonResponse(['error' => 'This text field cannot be edited inline.'], 422);
+        }
+
+        if ('news' === $recordType) {
+            $news = class_exists(NewsModel::class) ? NewsModel::findByPk($id) : null;
+
+            if (!$news || !in_array($field, ['headline', 'subheadline', 'teaser'], true)) {
+                return new JsonResponse(['error' => 'This news item cannot be edited inline.'], 404);
+            }
+
+            $value = (string) $news->{$field};
+
+            return new JsonResponse(['id' => (int) $news->id, 'field' => $field, 'value' => 'teaser' === $field ? $value : html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8')]);
+        }
+
+        if ('content' !== $recordType) {
+            return new JsonResponse(['error' => 'This record type cannot be edited inline.'], 404);
+        }
+
+        $element = ContentModel::findByPk($id);
+
+        if (!$element) {
+            return new JsonResponse(['error' => 'This content element no longer exists.'], 404);
+        }
+
+        if ('headline' === $field && in_array($element->type, ['headline', 'text'], true)) {
+            $headline = StringUtil::deserialize($element->headline, true);
+            $value = html_entity_decode((string) ($headline['value'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        } elseif ('text' === $field && 'text' === $element->type) {
+            $value = (string) $element->text;
+        } elseif ('caption' === $field && 'image' === $element->type) {
+            $value = html_entity_decode((string) $element->caption, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        } else {
+            return new JsonResponse(['error' => 'This content element cannot be edited inline.'], 404);
+        }
+
+        return new JsonResponse(['id' => (int) $element->id, 'field' => $field, 'value' => $value]);
+    }
+
+    private function fileUuidString(mixed $uuid): string
+    {
+        $uuid = (string) $uuid;
+
+        return \Contao\Validator::isBinaryUuid($uuid) ? StringUtil::binToUuid($uuid) : $uuid;
+    }
+
     private function sanitizeRichText(string $value): string
     {
         $config = (new HtmlSanitizerConfig())
@@ -250,6 +319,9 @@ final class InlineContentSaveController
             $description = $GLOBALS['TL_LANG']['tl_content'][$name][1] ?? '';
             $storedValue = $element->{$name};
             $value = StringUtil::deserialize($storedValue);
+            if ('module' === $name && 'module' === (string) $element->type) {
+                $widget = 'select';
+            }
             if ('cssID' === $name) {
                 $cssId = StringUtil::deserialize($storedValue, true);
                 $value = ['id' => (string) ($cssId[0] ?? ''), 'class' => (string) ($cssId[1] ?? '')];
@@ -258,16 +330,16 @@ final class InlineContentSaveController
                 $selectedFiles = [];
                 if (!empty($eval['multiple'])) {
                     $storedItems = $storedValue ? StringUtil::deserialize($storedValue, true) : [];
-                    $value = array_map(static fn ($uuid): string => StringUtil::binToUuid($uuid), $storedItems);
+                    $value = array_map(fn ($uuid): string => $this->fileUuidString($uuid), $storedItems);
                 } else {
-                    $value = $storedValue ? StringUtil::binToUuid($storedValue) : '';
+                    $value = $storedValue ? $this->fileUuidString($storedValue) : '';
                 }
-                foreach ((array) ($eval['multiple'] ? $value : ($value ? [$value] : [])) as $uuid) {
+                foreach ((array) (!empty($eval['multiple']) ? $value : ($value ? [$value] : [])) as $uuid) {
                     $fileModel = FilesModel::findByUuid((string) $uuid);
                     if (!$fileModel || 'file' !== $fileModel->type) continue;
                     $file = new File($fileModel->path);
                     $selectedFiles[] = [
-                        'uuid' => StringUtil::binToUuid($fileModel->uuid),
+                        'uuid' => $this->fileUuidString($fileModel->uuid),
                         'name' => $fileModel->name,
                         'type' => $file->isImage ? 'image' : 'file',
                         'url' => $this->publicFileUrl($request, $fileModel->path),
@@ -296,7 +368,16 @@ final class InlineContentSaveController
             }
             $rawOptions = $eval['options'] ?? $config['options'] ?? $config['reference'] ?? [];
             if ('imageSize' === $widget) $rawOptions = System::getContainer()->get('contao.image.sizes')->getAllOptions();
-            if ('pageTree' === $widget) {
+            if ('module' === $name && 'module' === (string) $element->type) {
+                foreach ($connection->fetchAllAssociative('SELECT id,name,type FROM tl_module ORDER BY name,id') as $module) {
+                    $moduleName = trim((string) ($module['name'] ?? ''));
+                    $moduleType = trim((string) ($module['type'] ?? ''));
+                    $options[] = [
+                        'value' => (string) $module['id'],
+                        'label' => ($moduleName ?: 'Module').' — '.($moduleType ?: 'module').' (#'.$module['id'].')',
+                    ];
+                }
+            } elseif ('pageTree' === $widget) {
                 foreach ($connection->fetchAllAssociative('SELECT id,title FROM tl_page ORDER BY pid,sorting,title') as $page) $options[] = ['value' => (string) $page['id'], 'label' => (string) $page['title']];
             }
             if (is_array($rawOptions)) {
@@ -430,6 +511,9 @@ final class InlineContentSaveController
                 if (mb_strlen($value) > min(max($limit, 1), 20000)) return new JsonResponse(['error' => 'A field value is too long.'], 422);
                 if ('youtube' === $name && !preg_match('/^[\w-]{11}$/', $value)) return new JsonResponse(['error' => 'Enter a valid YouTube video URL.'], 422);
                 if ('vimeo' === $name && !preg_match('/^\d{1,12}$/', $value)) return new JsonResponse(['error' => 'Enter a valid Vimeo video URL.'], 422);
+                if ('module' === $name && 'module' === (string) $element->type) {
+                    if (!filter_var($value, FILTER_VALIDATE_INT) || !$connection->fetchOne('SELECT id FROM tl_module WHERE id=?', [(int) $value])) return new JsonResponse(['error' => 'Choose a module from the list.'], 422);
+                }
                 $options = $config['eval']['options'] ?? $config['options'] ?? $config['reference'] ?? [];
                 $nativeChoiceWidgets = ['select', 'radio', 'radioTable', 'selectTree'];
                 $plainWidgets = ['text', 'textarea', 'checkbox', 'fileTree', 'pageTree', 'inputUnit', 'imageSize', 'listWizard', 'rowWizard', 'tableWizard'];
@@ -891,6 +975,56 @@ final class InlineContentSaveController
             return [(int) $create($type, $overrides)->id];
         }
 
+    }
+
+    public function hiddenElements(Request $request): JsonResponse
+    {
+        $this->framework->initialize();
+
+        if (!$this->isAuthorizedEditor($request)) {
+            return new JsonResponse(['error' => 'Sign in to Contao as an administrator to edit this page.'], 403);
+        }
+
+        $pageId = filter_var($request->query->get('pageId'), FILTER_VALIDATE_INT);
+        if (!$pageId) return new JsonResponse(['elements' => []]);
+
+        $connection = System::getContainer()->get('doctrine.dbal.default_connection');
+        $elements = $connection->fetchAllAssociative(
+            'SELECT c.id, c.pid, c.sorting, c.type, c.title, c.customTpl FROM tl_content c INNER JOIN tl_article a ON a.id=c.pid WHERE c.ptable=? AND a.pid=? AND c.invisible=1 AND c.tstamp!=0 ORDER BY c.pid, c.sorting, c.id',
+            ['tl_article', (int) $pageId],
+        );
+
+        $previewElements = [];
+        foreach ($elements as $element) {
+            $previewHtml = '';
+            $model = ContentModel::findByPk((int) $element['id']);
+
+            if ($model) {
+                try {
+                    $previewModel = $model->cloneDetached();
+                    $previewModel->invisible = false;
+                    $previewModel->start = '';
+                    $previewModel->stop = '';
+                    $previewHtml = \Contao\Controller::getContentElement($previewModel);
+                    $previewHtml = preg_replace("/(data-contao-live-edit-invisible=[\"'])false([\"'])/i", '$1true$2', $previewHtml) ?? $previewHtml;
+                } catch (\Throwable) {
+                    // Keep the metadata placeholder as a fallback if a custom
+                    // element cannot be rendered in the editor preview.
+                }
+            }
+
+            $previewElements[] = [
+                'id' => (int) $element['id'],
+                'pid' => (int) $element['pid'],
+                'sorting' => (int) $element['sorting'],
+                'type' => (string) $element['type'],
+                'title' => (string) ($element['title'] ?? ''),
+                'template' => trim((string) ($element['customTpl'] ?? '')) ?: 'ce_'.$element['type'],
+                'html' => $previewHtml,
+            ];
+        }
+
+        return new JsonResponse(['elements' => $previewElements]);
     }
 
     public function listContentElements(Request $request): JsonResponse
